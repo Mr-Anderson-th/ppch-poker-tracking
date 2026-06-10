@@ -14,13 +14,224 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      clock_sessions: {
+        Row: {
+          ended_at: string | null
+          id: string
+          round_id: string | null
+          started_at: string
+          user_agent: string | null
+        }
+        Insert: {
+          ended_at?: string | null
+          id?: string
+          round_id?: string | null
+          started_at?: string
+          user_agent?: string | null
+        }
+        Update: {
+          ended_at?: string | null
+          id?: string
+          round_id?: string | null
+          started_at?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clock_sessions_round_id_fkey"
+            columns: ["round_id"]
+            isOneToOne: false
+            referencedRelation: "rounds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      players: {
+        Row: {
+          active: boolean
+          avatar_color: string | null
+          created_at: string
+          id: string
+          name: string
+          nickname: string | null
+        }
+        Insert: {
+          active?: boolean
+          avatar_color?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          nickname?: string | null
+        }
+        Update: {
+          active?: boolean
+          avatar_color?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          nickname?: string | null
+        }
+        Relationships: []
+      }
+      round_results: {
+        Row: {
+          bust_bb: number | null
+          bust_level: number | null
+          bust_sb: number | null
+          finish_position: number
+          id: string
+          net_amount: number
+          payout: number
+          player_id: string
+          points_awarded: number
+          rebuys: number
+          round_id: string
+        }
+        Insert: {
+          bust_bb?: number | null
+          bust_level?: number | null
+          bust_sb?: number | null
+          finish_position: number
+          id?: string
+          net_amount?: number
+          payout?: number
+          player_id: string
+          points_awarded?: number
+          rebuys?: number
+          round_id: string
+        }
+        Update: {
+          bust_bb?: number | null
+          bust_level?: number | null
+          bust_sb?: number | null
+          finish_position?: number
+          id?: string
+          net_amount?: number
+          payout?: number
+          player_id?: string
+          points_awarded?: number
+          rebuys?: number
+          round_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "round_results_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "round_results_round_id_fkey"
+            columns: ["round_id"]
+            isOneToOne: false
+            referencedRelation: "rounds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rounds: {
+        Row: {
+          blind_multiplier: number
+          buy_in: number
+          created_at: string
+          duration_seconds: number
+          id: string
+          level_minutes: number
+          name: string
+          notes: string | null
+          payout_structure: Json
+          played_at: string
+          rebuy_amount: number
+          starting_bb: number
+          starting_sb: number
+          total_players: number
+          total_pot: number
+          total_rebuys: number
+        }
+        Insert: {
+          blind_multiplier?: number
+          buy_in?: number
+          created_at?: string
+          duration_seconds?: number
+          id?: string
+          level_minutes?: number
+          name: string
+          notes?: string | null
+          payout_structure?: Json
+          played_at?: string
+          rebuy_amount?: number
+          starting_bb?: number
+          starting_sb?: number
+          total_players?: number
+          total_pot?: number
+          total_rebuys?: number
+        }
+        Update: {
+          blind_multiplier?: number
+          buy_in?: number
+          created_at?: string
+          duration_seconds?: number
+          id?: string
+          level_minutes?: number
+          name?: string
+          notes?: string | null
+          payout_structure?: Json
+          played_at?: string
+          rebuy_amount?: number
+          starting_bb?: number
+          starting_sb?: number
+          total_players?: number
+          total_pot?: number
+          total_rebuys?: number
+        }
+        Relationships: []
+      }
+      settings: {
+        Row: {
+          admin_password_hash: string
+          currency: string
+          default_blind_multiplier: number
+          default_buy_in: number
+          default_level_minutes: number
+          default_rebuy: number
+          default_starting_bb: number
+          default_starting_sb: number
+          id: number
+          point_system: Json
+        }
+        Insert: {
+          admin_password_hash: string
+          currency?: string
+          default_blind_multiplier?: number
+          default_buy_in?: number
+          default_level_minutes?: number
+          default_rebuy?: number
+          default_starting_bb?: number
+          default_starting_sb?: number
+          id?: number
+          point_system?: Json
+        }
+        Update: {
+          admin_password_hash?: string
+          currency?: string
+          default_blind_multiplier?: number
+          default_buy_in?: number
+          default_level_minutes?: number
+          default_rebuy?: number
+          default_starting_bb?: number
+          default_starting_sb?: number
+          id?: number
+          point_system?: Json
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      verify_admin_password: { Args: { _password: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
