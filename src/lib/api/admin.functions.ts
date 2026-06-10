@@ -99,10 +99,7 @@ export const changeAdminPassword = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     await verify(data.password);
     const sb = await admin();
-    const { error } = await (sb.rpc as (fn: string, args: Record<string, unknown>) => Promise<{ error: { message: string } | null }>)(
-      "set_admin_password",
-      { _new_password: data.newPassword },
-    );
+    const { error } = await sb.rpc("set_admin_password", { _new_password: data.newPassword });
     if (error) throw new Error(error.message);
     return { ok: true };
   });
