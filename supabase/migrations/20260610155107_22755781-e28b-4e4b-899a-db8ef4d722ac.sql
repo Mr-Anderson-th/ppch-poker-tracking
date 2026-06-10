@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.verify_admin_password(TEXT) FROM PUBLIC, anon, authenticated;
