@@ -9,12 +9,32 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as RoundsRouteImport } from './routes/rounds'
+import { Route as PlayersRouteImport } from './routes/players'
 import { Route as ClockRouteImport } from './routes/clock'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as RoundsIdRouteImport } from './routes/rounds.$id'
+import { Route as PlayersIdRouteImport } from './routes/players.$id'
 
+const RoundsRoute = RoundsRouteImport.update({
+  id: '/rounds',
+  path: '/rounds',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlayersRoute = PlayersRouteImport.update({
+  id: '/players',
+  path: '/players',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ClockRoute = ClockRouteImport.update({
   id: '/clock',
   path: '/clock',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -22,40 +42,111 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RoundsIdRoute = RoundsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => RoundsRoute,
+} as any)
+const PlayersIdRoute = PlayersIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => PlayersRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/clock': typeof ClockRoute
+  '/players': typeof PlayersRouteWithChildren
+  '/rounds': typeof RoundsRouteWithChildren
+  '/players/$id': typeof PlayersIdRoute
+  '/rounds/$id': typeof RoundsIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/clock': typeof ClockRoute
+  '/players': typeof PlayersRouteWithChildren
+  '/rounds': typeof RoundsRouteWithChildren
+  '/players/$id': typeof PlayersIdRoute
+  '/rounds/$id': typeof RoundsIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/clock': typeof ClockRoute
+  '/players': typeof PlayersRouteWithChildren
+  '/rounds': typeof RoundsRouteWithChildren
+  '/players/$id': typeof PlayersIdRoute
+  '/rounds/$id': typeof RoundsIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/clock'
+  fullPaths:
+    | '/'
+    | '/admin'
+    | '/clock'
+    | '/players'
+    | '/rounds'
+    | '/players/$id'
+    | '/rounds/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/clock'
-  id: '__root__' | '/' | '/clock'
+  to:
+    | '/'
+    | '/admin'
+    | '/clock'
+    | '/players'
+    | '/rounds'
+    | '/players/$id'
+    | '/rounds/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin'
+    | '/clock'
+    | '/players'
+    | '/rounds'
+    | '/players/$id'
+    | '/rounds/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRoute
   ClockRoute: typeof ClockRoute
+  PlayersRoute: typeof PlayersRouteWithChildren
+  RoundsRoute: typeof RoundsRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/rounds': {
+      id: '/rounds'
+      path: '/rounds'
+      fullPath: '/rounds'
+      preLoaderRoute: typeof RoundsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/players': {
+      id: '/players'
+      path: '/players'
+      fullPath: '/players'
+      preLoaderRoute: typeof PlayersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/clock': {
       id: '/clock'
       path: '/clock'
       fullPath: '/clock'
       preLoaderRoute: typeof ClockRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -65,12 +156,51 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/rounds/$id': {
+      id: '/rounds/$id'
+      path: '/$id'
+      fullPath: '/rounds/$id'
+      preLoaderRoute: typeof RoundsIdRouteImport
+      parentRoute: typeof RoundsRoute
+    }
+    '/players/$id': {
+      id: '/players/$id'
+      path: '/$id'
+      fullPath: '/players/$id'
+      preLoaderRoute: typeof PlayersIdRouteImport
+      parentRoute: typeof PlayersRoute
+    }
   }
 }
 
+interface PlayersRouteChildren {
+  PlayersIdRoute: typeof PlayersIdRoute
+}
+
+const PlayersRouteChildren: PlayersRouteChildren = {
+  PlayersIdRoute: PlayersIdRoute,
+}
+
+const PlayersRouteWithChildren =
+  PlayersRoute._addFileChildren(PlayersRouteChildren)
+
+interface RoundsRouteChildren {
+  RoundsIdRoute: typeof RoundsIdRoute
+}
+
+const RoundsRouteChildren: RoundsRouteChildren = {
+  RoundsIdRoute: RoundsIdRoute,
+}
+
+const RoundsRouteWithChildren =
+  RoundsRoute._addFileChildren(RoundsRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRoute,
   ClockRoute: ClockRoute,
+  PlayersRoute: PlayersRouteWithChildren,
+  RoundsRoute: RoundsRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
