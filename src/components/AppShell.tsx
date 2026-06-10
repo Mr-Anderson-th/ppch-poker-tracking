@@ -1,0 +1,113 @@
+import { Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { LayoutDashboard, Timer, Users, ListOrdered, Lock, Unlock, Spade } from "lucide-react";
+import { useAdminUnlocked, setAdminPassword } from "@/lib/admin-store";
+import { Button } from "@/components/ui/button";
+
+const nav = [
+  { to: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
+  { to: "/clock", label: "Clock", icon: Timer },
+  { to: "/players", label: "Players", icon: Users },
+  { to: "/rounds", label: "Rounds", icon: ListOrdered },
+];
+
+export function AppShell() {
+  const unlocked = useAdminUnlocked();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  return (
+    <div className="min-h-screen bg-background flex">
+      {/* Sidebar */}
+      <aside className="hidden md:flex md:w-60 lg:w-64 border-r border-border bg-sidebar flex-col">
+        <div className="px-5 py-5 flex items-center gap-2.5">
+          <div className="size-9 rounded-xl bg-primary text-primary-foreground grid place-items-center shadow-sm">
+            <Spade className="size-5" />
+          </div>
+          <div>
+            <div className="font-display font-bold text-[15px] leading-none">PPCH</div>
+            <div className="text-[11px] text-muted-foreground mt-1">Pakree Poker Clue House</div>
+          </div>
+        </div>
+        <nav className="px-3 py-2 space-y-1 flex-1">
+          {nav.map((n) => {
+            const active = n.exact ? pathname === n.to : pathname.startsWith(n.to);
+            return (
+              <Link
+                key={n.to}
+                to={n.to}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  active
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                }`}
+              >
+                <n.icon className="size-[18px]" />
+                {n.label}
+              </Link>
+            );
+          })}
+          <Link
+            to="/admin"
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              pathname.startsWith("/admin")
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+            }`}
+          >
+            {unlocked ? <Unlock className="size-[18px]" /> : <Lock className="size-[18px]" />}
+            Admin
+          </Link>
+        </nav>
+        <div className="p-3 border-t border-border">
+          {unlocked ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start text-muted-foreground"
+              onClick={() => setAdminPassword(null)}
+            >
+              <Lock className="size-4 mr-2" /> Lock admin
+            </Button>
+          ) : (
+            <div className="text-xs text-muted-foreground px-2 py-1">View-only mode</div>
+          )}
+        </div>
+      </aside>
+
+      {/* Mobile top bar */}
+      <div className="md:hidden fixed top-0 left-0 right-0 z-30 bg-card border-b border-border">
+        <div className="flex items-center justify-between px-4 h-14">
+          <Link to="/" className="flex items-center gap-2">
+            <div className="size-8 rounded-lg bg-primary text-primary-foreground grid place-items-center">
+              <Spade className="size-4" />
+            </div>
+            <span className="font-display font-bold text-sm">PPCH</span>
+          </Link>
+          <Link to="/admin" className="text-xs text-muted-foreground">
+            {unlocked ? <Unlock className="size-4" /> : <Lock className="size-4" />}
+          </Link>
+        </div>
+        <nav className="flex overflow-x-auto px-2 pb-2 gap-1">
+          {nav.map((n) => {
+            const active = n.exact ? pathname === n.to : pathname.startsWith(n.to);
+            return (
+              <Link
+                key={n.to}
+                to={n.to}
+                className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${
+                  active ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"
+                }`}
+              >
+                <n.icon className="size-3.5" />
+                {n.label}
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
+
+      <main className="flex-1 min-w-0 pt-[6.5rem] md:pt-0">
+        <Outlet />
+      </main>
+    </div>
+  );
+}
