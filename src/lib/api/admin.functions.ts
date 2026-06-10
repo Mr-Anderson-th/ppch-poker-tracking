@@ -99,18 +99,11 @@ export const changeAdminPassword = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     await verify(data.password);
     const sb = await admin();
-    // Use raw SQL via RPC-less approach: update with crypt() through a sql call
-    const { error } = await sb.rpc("set_admin_password", { _new_password: data.newPassword }).single();
-    if (error) {
-      // Fallback: not provided; use a direct SQL via PostgREST is not possible, so we issue an update with crypt via select
-      const { data: hash, error: e2 } = await sb
-        .from("settings")
-        .select("admin_password_hash")
-        .eq("id", 1)
-        .single();
-      if (e2) throw new Error(e2.message);
-      throw new Error("Password change function unavailable. Please contact developer.");
-    }
+    const { error } = await (sb.rpc as (fn: string, args: Record<string, unknown>) => Promise<{ error: { message: string } | null }>)(
+      "set_admin_password",
+      { _new_password: data.newPassword },
+    );
+    if (error) throw new Error(error.message);
     return { ok: true };
   });
 
