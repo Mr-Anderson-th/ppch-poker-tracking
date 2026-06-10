@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useAdminUnlocked, setAdminPassword, getAdminPassword } from "@/lib/admin-store";
 import { verifyAdmin, upsertPlayer, deletePlayer, updateSettings, changeAdminPassword } from "@/lib/api/admin.functions";
 import { useServerFn } from "@tanstack/react-start";
