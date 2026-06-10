@@ -227,9 +227,9 @@ function SettingsAdmin() {
   const [bb, setBb] = useState(50);
   const [mult, setMult] = useState(1.5);
   const [currency, setCurrency] = useState("฿");
-  const [loaded, setLoaded] = useState(false);
 
-  if (settings && !loaded) {
+  useEffect(() => {
+    if (!settings) return;
     setPointsStr(settings.point_system.join(","));
     setBuyIn(Number(settings.default_buy_in));
     setRebuy(Number(settings.default_rebuy));
@@ -238,8 +238,8 @@ function SettingsAdmin() {
     setBb(settings.default_starting_bb);
     setMult(Number(settings.default_blind_multiplier));
     setCurrency(settings.currency);
-    setLoaded(true);
-  }
+  }, [settings]);
+
 
   const save = async () => {
     const pw = getAdminPassword();
