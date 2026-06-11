@@ -50,6 +50,7 @@ export type Database = {
         Row: {
           active: boolean
           avatar_color: string | null
+          avatar_url: string | null
           created_at: string
           id: string
           name: string
@@ -58,6 +59,7 @@ export type Database = {
         Insert: {
           active?: boolean
           avatar_color?: string | null
+          avatar_url?: string | null
           created_at?: string
           id?: string
           name: string
@@ -66,6 +68,7 @@ export type Database = {
         Update: {
           active?: boolean
           avatar_color?: string | null
+          avatar_url?: string | null
           created_at?: string
           id?: string
           name?: string
@@ -78,12 +81,14 @@ export type Database = {
           bust_bb: number | null
           bust_level: number | null
           bust_sb: number | null
+          bust_time_seconds: number | null
           finish_position: number
           id: string
           net_amount: number
           payout: number
           player_id: string
           points_awarded: number
+          rebuy_times: Json
           rebuys: number
           round_id: string
         }
@@ -91,12 +96,14 @@ export type Database = {
           bust_bb?: number | null
           bust_level?: number | null
           bust_sb?: number | null
+          bust_time_seconds?: number | null
           finish_position: number
           id?: string
           net_amount?: number
           payout?: number
           player_id: string
           points_awarded?: number
+          rebuy_times?: Json
           rebuys?: number
           round_id: string
         }
@@ -104,12 +111,14 @@ export type Database = {
           bust_bb?: number | null
           bust_level?: number | null
           bust_sb?: number | null
+          bust_time_seconds?: number | null
           finish_position?: number
           id?: string
           net_amount?: number
           payout?: number
           player_id?: string
           points_awarded?: number
+          rebuy_times?: Json
           rebuys?: number
           round_id?: string
         }
