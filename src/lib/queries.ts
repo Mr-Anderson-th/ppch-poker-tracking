@@ -6,6 +6,7 @@ export type Player = {
   name: string;
   nickname: string | null;
   avatar_color: string | null;
+  avatar_url: string | null;
   active: boolean;
   created_at: string;
 };
@@ -38,6 +39,8 @@ export type RoundResult = {
   bust_sb: number | null;
   bust_bb: number | null;
   bust_level: number | null;
+  bust_time_seconds: number | null;
+  rebuy_times: number[];
   payout: number;
   net_amount: number;
   points_awarded: number;
@@ -92,7 +95,10 @@ export function useResults() {
     queryFn: async () => {
       const { data, error } = await supabase.from("round_results").select("*");
       if (error) throw error;
-      return data as RoundResult[];
+      return (data ?? []).map((r) => ({
+        ...r,
+        rebuy_times: (r.rebuy_times as unknown as number[]) ?? [],
+      })) as RoundResult[];
     },
   });
 }
@@ -135,7 +141,10 @@ export function useRoundResults(roundId: string) {
         .eq("round_id", roundId)
         .order("finish_position");
       if (error) throw error;
-      return data as RoundResult[];
+      return (data ?? []).map((r) => ({
+        ...r,
+        rebuy_times: (r.rebuy_times as unknown as number[]) ?? [],
+      })) as RoundResult[];
     },
   });
 }

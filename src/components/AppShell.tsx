@@ -2,6 +2,7 @@ import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { LayoutDashboard, Timer, Users, ListOrdered, Lock, Unlock, Spade } from "lucide-react";
 import { useAdminUnlocked, setAdminPassword } from "@/lib/admin-store";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
@@ -19,13 +20,14 @@ export function AppShell() {
       {/* Sidebar */}
       <aside className="hidden md:flex md:w-60 lg:w-64 border-r border-border bg-sidebar flex-col">
         <div className="px-5 py-5 flex items-center gap-2.5">
-          <div className="size-9 rounded-xl bg-primary text-primary-foreground grid place-items-center shadow-sm">
+          <div className="size-9 rounded-xl bg-primary text-primary-foreground grid place-items-center shadow-sm btn-glow">
             <Spade className="size-5" />
           </div>
-          <div>
+          <div className="flex-1 min-w-0">
             <div className="font-display font-bold text-[15px] leading-none">PPCH</div>
-            <div className="text-[11px] text-muted-foreground mt-1">Pakree Poker Clue House</div>
+            <div className="text-[11px] text-muted-foreground mt-1 truncate">Pakree Poker Clue House</div>
           </div>
+          <ThemeToggle />
         </div>
         <nav className="px-3 py-2 space-y-1 flex-1">
           {nav.map((n) => {
@@ -34,10 +36,10 @@ export function AppShell() {
               <Link
                 key={n.to}
                 to={n.to}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                   active
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                    ? "bg-primary/12 text-primary shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--primary)_20%,transparent)]"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground hover:translate-x-0.5"
                 }`}
               >
                 <n.icon className="size-[18px]" />
@@ -47,10 +49,10 @@ export function AppShell() {
           })}
           <Link
             to="/admin"
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
               pathname.startsWith("/admin")
-                ? "bg-primary/10 text-primary"
-                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                ? "bg-primary/12 text-primary"
+                : "text-muted-foreground hover:bg-secondary hover:text-foreground hover:translate-x-0.5"
             }`}
           >
             {unlocked ? <Unlock className="size-[18px]" /> : <Lock className="size-[18px]" />}
@@ -82,9 +84,12 @@ export function AppShell() {
             </div>
             <span className="font-display font-bold text-sm">PPCH</span>
           </Link>
-          <Link to="/admin" className="text-xs text-muted-foreground">
-            {unlocked ? <Unlock className="size-4" /> : <Lock className="size-4" />}
-          </Link>
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
+            <Link to="/admin" className="text-xs text-muted-foreground p-2">
+              {unlocked ? <Unlock className="size-4" /> : <Lock className="size-4" />}
+            </Link>
+          </div>
         </div>
         <nav className="flex overflow-x-auto px-2 pb-2 gap-1">
           {nav.map((n) => {
@@ -93,8 +98,8 @@ export function AppShell() {
               <Link
                 key={n.to}
                 to={n.to}
-                className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${
-                  active ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"
+                className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all active:scale-95 ${
+                  active ? "bg-primary text-primary-foreground btn-glow" : "bg-secondary text-secondary-foreground"
                 }`}
               >
                 <n.icon className="size-3.5" />
