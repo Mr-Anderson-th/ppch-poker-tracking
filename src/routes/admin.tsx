@@ -1,17 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useAdminUnlocked, setAdminPassword, getAdminPassword } from "@/lib/admin-store";
-import { verifyAdmin, upsertPlayer, deletePlayer, updateSettings, changeAdminPassword } from "@/lib/api/admin.functions";
+import { verifyAdmin, upsertPlayer, deletePlayer, updateSettings, changeAdminPassword, setPlayerAvatar } from "@/lib/api/admin.functions";
 import { useServerFn } from "@tanstack/react-start";
 import { usePlayers, useSettings, type Player } from "@/lib/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Lock, Unlock, Plus, Pencil, Trash2 } from "lucide-react";
+import { Lock, Unlock, Plus, Pencil, Trash2, Upload, X } from "lucide-react";
+import { PlayerAvatar } from "@/components/Avatar";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ title: "Admin — PPCH" }] }),
@@ -19,6 +20,33 @@ export const Route = createFileRoute("/admin")({
 });
 
 const COLORS = ["#6366f1", "#ec4899", "#f59e0b", "#10b981", "#ef4444", "#06b6d4", "#8b5cf6", "#84cc16", "#f97316", "#14b8a6"];
+
+// Resize image client-side to 256x256 JPEG data URL (~30-60KB)
+async function resizeToDataUrl(file: File, max = 256, quality = 0.82): Promise<string> {
+  if (file.size > 5 * 1024 * 1024) throw new Error("Image must be under 5MB");
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error("Could not load image"));
+      i.src = url;
+    });
+    const scale = Math.min(1, max / Math.max(img.width, img.height));
+    const w = Math.round(img.width * scale);
+    const h = Math.round(img.height * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas not available");
+    ctx.drawImage(img, 0, 0, w, h);
+    const dataUrl = canvas.toDataURL("image/jpeg", quality);
+    if (dataUrl.length > 700_000) throw new Error("Image too large after resize — try a simpler photo");
+    return dataUrl;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
 
 function AdminPage() {
   const unlocked = useAdminUnlocked();
@@ -59,7 +87,7 @@ function AdminPage() {
               onChange={(e) => setPw(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && onUnlock()}
             />
-            <Button className="w-full" onClick={onUnlock} disabled={loading || !pw}>
+            <Button className="w-full btn-glow" onClick={onUnlock} disabled={loading || !pw}>
               {loading ? "Verifying…" : "Unlock"}
             </Button>
           </CardContent>
@@ -94,7 +122,10 @@ function PlayersAdmin() {
   const queryClient = useQueryClient();
   const upsertFn = useServerFn(upsertPlayer);
   const deleteFn = useServerFn(deletePlayer);
+  const avatarFn = useServerFn(setPlayerAvatar);
   const [editing, setEditing] = useState<Partial<Player> | null>(null);
+  const [uploading, setUploading] = useState<string | null>(null);
+  const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const save = async () => {
     const pw = getAdminPassword();
@@ -106,6 +137,7 @@ function PlayersAdmin() {
         name: editing.name.trim(),
         nickname: editing.nickname ?? null,
         avatar_color: editing.avatar_color ?? "#6366f1",
+        avatar_url: editing.avatar_url ?? null,
         active: editing.active ?? true,
       }}});
       toast.success("Player saved");
@@ -130,11 +162,40 @@ function PlayersAdmin() {
     }
   };
 
+  const handleUpload = async (playerId: string, file: File | null) => {
+    if (!file) return;
+    const pw = getAdminPassword();
+    if (!pw) return;
+    setUploading(playerId);
+    try {
+      const dataUrl = await resizeToDataUrl(file);
+      await avatarFn({ data: { password: pw, id: playerId, avatar_url: dataUrl } });
+      toast.success("Avatar updated");
+      queryClient.invalidateQueries({ queryKey: ["players"] });
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  const removeAvatar = async (playerId: string) => {
+    const pw = getAdminPassword();
+    if (!pw) return;
+    try {
+      await avatarFn({ data: { password: pw, id: playerId, avatar_url: null } });
+      toast.success("Avatar removed");
+      queryClient.invalidateQueries({ queryKey: ["players"] });
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Players</CardTitle>
-        <Button size="sm" onClick={() => setEditing({ name: "", avatar_color: COLORS[Math.floor(Math.random()*COLORS.length)], active: true })}>
+        <Button size="sm" className="btn-glow" onClick={() => setEditing({ name: "", avatar_color: COLORS[Math.floor(Math.random()*COLORS.length)], active: true })}>
           <Plus className="size-4 mr-1" /> Add player
         </Button>
       </CardHeader>
@@ -143,9 +204,9 @@ function PlayersAdmin() {
           <table className="w-full text-sm">
             <thead className="text-xs text-muted-foreground">
               <tr className="border-b border-border">
-                <th className="text-left px-4 py-2">Name</th>
+                <th className="text-left px-4 py-2">Player</th>
                 <th className="text-left px-2 py-2">Nickname</th>
-                <th className="text-left px-2 py-2">Color</th>
+                <th className="text-left px-2 py-2">Photo</th>
                 <th className="text-left px-2 py-2">Status</th>
                 <th className="text-right px-4 py-2"></th>
               </tr>
@@ -155,13 +216,34 @@ function PlayersAdmin() {
               {players.map((p) => (
                 <tr key={p.id} className="border-b border-border last:border-0">
                   <td className="px-4 py-2 font-medium flex items-center gap-2">
-                    <span className="size-6 rounded-full grid place-items-center text-[10px] font-bold text-white" style={{ background: p.avatar_color ?? "#6366f1" }}>
-                      {p.name.split(" ").map((c) => c[0]).join("").slice(0, 2).toUpperCase()}
-                    </span>
+                    <PlayerAvatar player={p} size="md" />
                     {p.name}
                   </td>
                   <td className="px-2 py-2 text-muted-foreground">{p.nickname ?? "—"}</td>
-                  <td className="px-2 py-2"><span className="inline-block size-4 rounded" style={{ background: p.avatar_color ?? "#6366f1" }} /></td>
+                  <td className="px-2 py-2">
+                    <input
+                      ref={(el) => { fileInputs.current[p.id] = el; }}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={(e) => handleUpload(p.id, e.target.files?.[0] ?? null)}
+                    />
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="outline" size="sm"
+                        onClick={() => fileInputs.current[p.id]?.click()}
+                        disabled={uploading === p.id}
+                      >
+                        <Upload className="size-3 mr-1" />
+                        {uploading === p.id ? "…" : p.avatar_url ? "Replace" : "Upload"}
+                      </Button>
+                      {p.avatar_url && (
+                        <Button variant="ghost" size="sm" className="text-destructive" onClick={() => removeAvatar(p.id)}>
+                          <X className="size-3" />
+                        </Button>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-2 py-2 text-xs">{p.active ? <span className="text-success">Active</span> : <span className="text-muted-foreground">Inactive</span>}</td>
                   <td className="px-4 py-2 text-right">
                     <Button variant="ghost" size="sm" onClick={() => setEditing(p)}><Pencil className="size-3.5" /></Button>
@@ -188,7 +270,7 @@ function PlayersAdmin() {
                 <Input value={editing.nickname ?? ""} onChange={(e) => setEditing({ ...editing, nickname: e.target.value })} className="mt-1.5" />
               </div>
               <div>
-                <Label>Color</Label>
+                <Label>Fallback color (used when no photo)</Label>
                 <div className="flex flex-wrap gap-2 mt-1.5">
                   {COLORS.map((c) => (
                     <button key={c}
@@ -207,7 +289,7 @@ function PlayersAdmin() {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
-            <Button onClick={save}>Save</Button>
+            <Button onClick={save} className="btn-glow">Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -282,7 +364,7 @@ function SettingsAdmin() {
           <div><Label>Starting BB</Label><Input type="number" value={bb} onChange={(e) => setBb(Number(e.target.value))} className="mt-1.5" /></div>
           <div><Label>Blind multiplier</Label><Input type="number" step="0.1" value={mult} onChange={(e) => setMult(Number(e.target.value))} className="mt-1.5" /></div>
         </div>
-        <Button onClick={save}>Save settings</Button>
+        <Button onClick={save} className="btn-glow">Save settings</Button>
       </CardContent>
     </Card>
   );
@@ -314,7 +396,7 @@ function PasswordAdmin() {
           <div><Label>New password</Label><Input type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} className="mt-1.5" /></div>
           <div><Label>Confirm</Label><Input type="password" value={newPw2} onChange={(e) => setNewPw2(e.target.value)} className="mt-1.5" /></div>
         </div>
-        <Button onClick={save}>Update password</Button>
+        <Button onClick={save} className="btn-glow">Update password</Button>
       </CardContent>
     </Card>
   );
