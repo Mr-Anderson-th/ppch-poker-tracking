@@ -399,8 +399,8 @@ function EditRoundDialog({
                 {rows.map((r, i) => (
                   <tr key={r.id} className="border-t border-border">
                     <td className="px-2 py-1 font-medium whitespace-nowrap">{playerName(r.player_id)}</td>
-                    <td><NumCell v={r.finish_position} on={(v) => update(i, { finish_position: v })} /></td>
-                    <td><NumCell v={r.rebuys} on={(v) => update(i, { rebuys: v })} /></td>
+                    <td><NumCell v={r.finish_position} on={(v) => update(i, { finish_position: v ?? 1 })} /></td>
+                    <td><NumCell v={r.rebuys} on={(v) => update(i, { rebuys: v ?? 0 })} /></td>
                     <td><NumCell v={r.bust_sb} on={(v) => update(i, { bust_sb: v })} nullable /></td>
                     <td><NumCell v={r.bust_bb} on={(v) => update(i, { bust_bb: v })} nullable /></td>
                     <td><NumCell v={r.bust_level} on={(v) => update(i, { bust_level: v })} nullable /></td>
