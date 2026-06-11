@@ -23,11 +23,13 @@ export const Route = createFileRoute("/clock")({
 type SeatState = {
   player: Player;
   rebuys: number;
+  rebuyTimes: number[]; // seconds-from-start when each rebuy was used
   out: boolean;
   bustPosition: number | null; // 1 = winner
   bustSb: number | null;
   bustBb: number | null;
   bustLevel: number | null;
+  bustTimeSeconds: number | null;
 };
 
 function ClockPage() {
@@ -102,7 +104,7 @@ function ClockPage() {
     }
     setSeats(
       chosen.map((p) => ({
-        player: p, rebuys: 0, out: false, bustPosition: null, bustSb: null, bustBb: null, bustLevel: null,
+        player: p, rebuys: 0, rebuyTimes: [], out: false, bustPosition: null, bustSb: null, bustBb: null, bustLevel: null, bustTimeSeconds: null,
       })),
     );
     setCurrentLevel(0);
@@ -166,7 +168,7 @@ function ClockPage() {
     setSeats((prev) =>
       prev.map((s) =>
         s.player.id === seat.player.id
-          ? { ...s, out: true, bustPosition: nextPos, bustSb: cur.sb, bustBb: cur.bb, bustLevel: cur.level }
+          ? { ...s, out: true, bustPosition: nextPos, bustSb: cur.sb, bustBb: cur.bb, bustLevel: cur.level, bustTimeSeconds: elapsedTotal }
           : s,
       ),
     );
@@ -186,7 +188,7 @@ function ClockPage() {
 
   function addRebuy(seat: SeatState) {
     setSeats((prev) =>
-      prev.map((s) => (s.player.id === seat.player.id ? { ...s, rebuys: s.rebuys + 1 } : s)),
+      prev.map((s) => (s.player.id === seat.player.id ? { ...s, rebuys: s.rebuys + 1, rebuyTimes: [...s.rebuyTimes, elapsedTotal] } : s)),
     );
   }
 
@@ -210,6 +212,8 @@ function ClockPage() {
       bust_sb: s.bustSb,
       bust_bb: s.bustBb,
       bust_level: s.bustLevel,
+      bust_time_seconds: s.bustTimeSeconds,
+      rebuy_times: s.rebuyTimes,
       payout: payouts[(s.bustPosition ?? idx + 1) - 1] ?? 0,
     }));
 

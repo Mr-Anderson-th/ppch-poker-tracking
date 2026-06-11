@@ -25,6 +25,7 @@ const playerSchema = z.object({
   name: z.string().trim().min(1).max(60),
   nickname: z.string().trim().max(60).optional().nullable(),
   avatar_color: z.string().trim().max(20).optional().nullable(),
+  avatar_url: z.string().max(500_000).optional().nullable(),
   active: z.boolean().optional(),
 });
 
@@ -36,25 +37,39 @@ export const upsertPlayer = createServerFn({ method: "POST" })
     await verify(data.password);
     const sb = await admin();
     const { player } = data;
+    const row = {
+      name: player.name,
+      nickname: player.nickname ?? null,
+      avatar_color: player.avatar_color ?? "#6366f1",
+      avatar_url: player.avatar_url ?? null,
+      active: player.active ?? true,
+    };
     if (player.id) {
-      const { error } = await sb.from("players").update({
-        name: player.name,
-        nickname: player.nickname ?? null,
-        avatar_color: player.avatar_color ?? "#6366f1",
-        active: player.active ?? true,
-      }).eq("id", player.id);
+      const { error } = await sb.from("players").update(row).eq("id", player.id);
       if (error) throw new Error(error.message);
       return { id: player.id };
     } else {
-      const { data: row, error } = await sb.from("players").insert({
-        name: player.name,
-        nickname: player.nickname ?? null,
-        avatar_color: player.avatar_color ?? "#6366f1",
-        active: player.active ?? true,
-      }).select("id").single();
+      const { data: r, error } = await sb.from("players").insert(row).select("id").single();
       if (error) throw new Error(error.message);
-      return { id: row.id };
+      return { id: r.id };
     }
+  });
+
+export const setPlayerAvatar = createServerFn({ method: "POST" })
+  .inputValidator((d: { password: string; id: string; avatar_url: string | null }) =>
+    z.object({
+      password: z.string().min(1),
+      id: z.string().uuid(),
+      // base64 data URL — limit ~600KB
+      avatar_url: z.string().max(800_000).nullable(),
+    }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    await verify(data.password);
+    const sb = await admin();
+    const { error } = await sb.from("players").update({ avatar_url: data.avatar_url }).eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
   });
 
 export const deletePlayer = createServerFn({ method: "POST" })
@@ -104,7 +119,7 @@ export const changeAdminPassword = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-// Round save (no password — anyone can save a round result)
+// Round save (no password — anyone with the clock can save)
 const resultSchema = z.object({
   player_id: z.string().uuid(),
   finish_position: z.number().int().min(1).max(100),
@@ -112,6 +127,8 @@ const resultSchema = z.object({
   bust_sb: z.number().int().nullable().optional(),
   bust_bb: z.number().int().nullable().optional(),
   bust_level: z.number().int().nullable().optional(),
+  bust_time_seconds: z.number().int().min(0).nullable().optional(),
+  rebuy_times: z.array(z.number().int().min(0)).default([]),
   payout: z.number().min(0).default(0),
 });
 
@@ -138,7 +155,6 @@ export const saveRound = createServerFn({ method: "POST" })
     const sb = await admin();
     const { round } = data;
 
-    // Fetch point system
     const { data: settings } = await sb.from("settings").select("point_system").eq("id", 1).single();
     const pointSystem: number[] = (settings?.point_system as number[]) ?? [
       100, 75, 60, 50, 40, 30, 25, 20, 15, 10,
@@ -146,8 +162,7 @@ export const saveRound = createServerFn({ method: "POST" })
 
     const totalRebuys = round.results.reduce((s, r) => s + (r.rebuys ?? 0), 0);
     const totalPlayers = round.results.length;
-    const totalPot =
-      totalPlayers * round.buy_in + totalRebuys * round.rebuy_amount;
+    const totalPot = totalPlayers * round.buy_in + totalRebuys * round.rebuy_amount;
 
     const { data: r, error } = await sb
       .from("rounds")
@@ -182,6 +197,8 @@ export const saveRound = createServerFn({ method: "POST" })
         bust_sb: res.bust_sb ?? null,
         bust_bb: res.bust_bb ?? null,
         bust_level: res.bust_level ?? null,
+        bust_time_seconds: res.bust_time_seconds ?? null,
+        rebuy_times: res.rebuy_times ?? [],
         payout: res.payout,
         net_amount: res.payout - cost,
         points_awarded: points,
@@ -204,5 +221,84 @@ export const deleteRound = createServerFn({ method: "POST" })
     const sb = await admin();
     const { error } = await sb.from("rounds").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+// Edit existing round meta + results (admin)
+const editResultSchema = z.object({
+  id: z.string().uuid(),
+  finish_position: z.number().int().min(1).max(100),
+  rebuys: z.number().int().min(0).max(50),
+  bust_sb: z.number().int().nullable(),
+  bust_bb: z.number().int().nullable(),
+  bust_level: z.number().int().nullable(),
+  bust_time_seconds: z.number().int().min(0).nullable(),
+  payout: z.number().min(0),
+  points_awarded: z.number().int().min(0),
+});
+
+export const updateRound = createServerFn({ method: "POST" })
+  .inputValidator((d: {
+    password: string;
+    id: string;
+    round: {
+      name?: string;
+      played_at?: string;
+      buy_in?: number;
+      rebuy_amount?: number;
+      notes?: string | null;
+    };
+    results: z.infer<typeof editResultSchema>[];
+  }) =>
+    z.object({
+      password: z.string().min(1),
+      id: z.string().uuid(),
+      round: z.object({
+        name: z.string().trim().min(1).max(120).optional(),
+        played_at: z.string().optional(),
+        buy_in: z.number().min(0).optional(),
+        rebuy_amount: z.number().min(0).optional(),
+        notes: z.string().max(2000).nullable().optional(),
+      }),
+      results: z.array(editResultSchema).min(1).max(100),
+    }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    await verify(data.password);
+    const sb = await admin();
+
+    // Fetch current round for buy_in/rebuy fallback
+    const { data: existing, error: ge } = await sb.from("rounds").select("buy_in,rebuy_amount").eq("id", data.id).single();
+    if (ge) throw new Error(ge.message);
+    const buyIn = data.round.buy_in ?? Number(existing.buy_in);
+    const rebuyAmt = data.round.rebuy_amount ?? Number(existing.rebuy_amount);
+
+    const totalRebuys = data.results.reduce((s, r) => s + r.rebuys, 0);
+    const totalPlayers = data.results.length;
+    const totalPot = totalPlayers * buyIn + totalRebuys * rebuyAmt;
+
+    const { error: e1 } = await sb.from("rounds").update({
+      ...data.round,
+      total_players: totalPlayers,
+      total_rebuys: totalRebuys,
+      total_pot: totalPot,
+    }).eq("id", data.id);
+    if (e1) throw new Error(e1.message);
+
+    for (const r of data.results) {
+      const cost = buyIn + r.rebuys * rebuyAmt;
+      const { error: ue } = await sb.from("round_results").update({
+        finish_position: r.finish_position,
+        rebuys: r.rebuys,
+        bust_sb: r.bust_sb,
+        bust_bb: r.bust_bb,
+        bust_level: r.bust_level,
+        bust_time_seconds: r.bust_time_seconds,
+        payout: r.payout,
+        net_amount: r.payout - cost,
+        points_awarded: r.points_awarded,
+      }).eq("id", r.id);
+      if (ue) throw new Error(ue.message);
+    }
     return { ok: true };
   });
