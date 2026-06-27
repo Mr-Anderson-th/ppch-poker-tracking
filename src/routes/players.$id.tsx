@@ -27,10 +27,21 @@ function PlayerDetail() {
   const { data: results = [] } = useResults();
   const { data: rounds = [] } = useRounds();
   const { data: settings } = useSettings();
+  const { data: badges = [] } = useBadges();
+  const { data: playerBadges = [] } = usePlayerBadges();
+  const { data: seasons = [] } = useSeasons();
   const currency = settings?.currency ?? "฿";
+  const unlocked = useAdminUnlocked();
+  const [grantOpen, setGrantOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const grantFn = useServerFn(grantBadge);
+  const revokeFn = useServerFn(revokeBadge);
 
   const player = players.find((p) => p.id === id);
   const myResults = useMemo(() => results.filter((r) => r.player_id === id), [results, id]);
+  const badgeById = useMemo(() => new Map(badges.map((b) => [b.id, b])), [badges]);
+  const seasonById = useMemo(() => new Map(seasons.map((s) => [s.id, s])), [seasons]);
+  const myBadges = useMemo(() => playerBadges.filter((pb) => pb.player_id === id), [playerBadges, id]);
 
   const enriched = useMemo(() => {
     return myResults.map((r) => {
