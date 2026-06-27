@@ -1,11 +1,20 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { usePlayers, useResults, useRounds, useSettings } from "@/lib/queries";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { usePlayers, useResults, useRounds, useSettings, useBadges, usePlayerBadges, useSeasons } from "@/lib/queries";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, RadarChart, Radar, PolarAngleAxis, PolarGrid, PolarRadiusAxis } from "recharts";
 import { format } from "date-fns";
 import { PlayerAvatar } from "@/components/Avatar";
+import { BadgeChip } from "@/components/BadgeChip";
+import { useAdminUnlocked, getAdminPassword } from "@/lib/admin-store";
+import { useServerFn } from "@tanstack/react-start";
+import { grantBadge, revokeBadge } from "@/lib/api/admin.functions";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { Plus, X } from "lucide-react";
 
 export const Route = createFileRoute("/players/$id")({
   head: () => ({ meta: [{ title: "Player — PPCH" }] }),
