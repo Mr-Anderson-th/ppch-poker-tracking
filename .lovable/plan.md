@@ -1,91 +1,97 @@
-# แผนการปรับปรุง PPCH
+## 1. `/players` — better player detail entry + richer detail page
 
-ตอบคำถามสุดท้ายก่อน: **ได้ครับ** หลัง publish แล้ว นายยังกลับมาแก้ไขในแชทนี้ได้เรื่อยๆ ทุกการเปลี่ยนแปลง backend (database, server functions) จะ deploy ทันที ส่วน frontend ต้องกด **Update** ในหน้า Publish เพื่อให้ของใหม่ขึ้น production
+**Players list (`/players`)**
+- Use `PlayerAvatar` so uploaded photos show (today the cards only render colored initials).
+- Add a clear interactive **"View performance →"** button at the bottom of each card (in addition to the whole-card link) so it reads as actionable.
+- Show season badges (🥇🥈🥉 + custom) next to each player's name.
+- Add a small leaderboard rank chip (#1, #2…) sorted by current-season points.
 
----
+**Player detail (`/players/$id`)**
+- Header gets: large avatar, badges row (with tooltip "1st place — June 2026"), current season rank, and lifetime rank.
+- New **Season selector** (All-time / current / past seasons) that filters every stat, chart, and the round history below.
+- New cards: "Best finish", "Longest survival", "Biggest win (₿)", "Current streak" (consecutive ITM).
+- New chart: **bust-time vs blind-level scatter** (when do you typically bust?).
+- New chart: **head-to-head win-rate** vs each other active player (horizontal bar).
+- Existing charts (profit curve, radar, histograms) stay but become season-aware.
 
-## 1. Dark / Light Theme (ดำ-แดง เหมือนเว็บเดิม)
+## 2. `/rounds` — working Details link + cleaner row affordance
 
-- เพิ่ม theme tokens ชุดที่สองใน `src/styles.css` ภายใต้ `.dark` — พื้นดำลึก (`oklch(0.12 0 0)`), accent แดงโป๊กเกอร์ (`oklch(0.60 0.22 25)`), surface ดำ-เทาเข้ม, border เรืองแดงจางๆ
-- เพิ่ม `next-themes` provider ที่ `__root.tsx` (เก็บใน localStorage, default = light)
-- ปุ่มสลับ theme (sun/moon icon) ที่ `AppShell` topbar
-- ปุ่ม interactive: เพิ่ม variant ใหม่ใน button — hover scale + glow shadow ตามสี primary, active press-down, transition smooth (200ms). ใช้กับปุ่มหลักทุกหน้า
+The detail page (`/rounds/$id`) already exists and works — the issue is the small text "Details →" doesn't feel clickable and the rest of the row isn't.
 
-## 2. หน้า Round Details (`/rounds/$id`) — แก้ไขได้สำหรับ Admin
+- Make the **entire row clickable** (navigate to `/rounds/$id` on click; keep keyboard a11y with role=button).
+- Replace the text link with a real **"View details"** button on the right (primary outline, with chevron icon).
+- Add hover state: row lifts + border highlight.
+- Add a "Season" column / chip so each round shows which season it belongs to.
 
-หน้า detail มีอยู่แล้ว แต่จะเสริม:
+(No changes to the detail page itself in this turn unless you want them — say the word.)
 
-- **Timeline graph**: แสดงเส้นเวลาของรอบ (แกน X = เวลา/blind level, จุด = elimination ของผู้เล่นแต่ละคน, สัญลักษณ์ rebuy) ใช้ Recharts ScatterChart
-- **ตารางผู้เล่น**: เพิ่มคอลัมน์ `Bust time` (นาทีที่ตกรอบ) + `Bust level` (blind level ตอนตก)
-- **โหมด Edit (admin เท่านั้น)**: ปุ่ม "Edit round" → เปิด dialog แก้ทุก field: finish position, rebuys, bust_level, bust_sb/bb, points, payout, net_amount ของแต่ละผู้เล่น + ข้อมูลรอบ (date, buy-in, notes)
-- เพิ่ม server function `updateRoundResults` (password-gated เหมือนเดิม)
-- ต้องเพิ่ม column ใน DB: `round_results.bust_time_seconds` (integer, nullable) เพื่อเก็บนาทีที่ตกรอบ
+## 3. `/admin` — End-of-Season + Badges
 
-## 3. หน้า Player Detail (`/players/$id`) — Analytics ลึกขึ้น
+### End Season flow
 
-มีหน้าอยู่แล้ว เพิ่ม:
+New "Seasons" card on `/admin`:
+- Shows **current season** (name, start date, # rounds, # players with points).
+- Big **"End season & start new"** button (admin only, confirm dialog).
+- On confirm:
+  1. Snapshot the current season's leaderboard (player_id, rank, points, wins, net, rounds).
+  2. Auto-award badges to top 3 (🥇 Champion, 🥈 Runner-up, 🥉 Third place) — plus any **custom auto-rules** the admin defined (e.g. "Most rebuys", "Biggest single win").
+  3. Close the current season (`ended_at = now()`).
+  4. Open a new season (admin enters a name, e.g. "July 2026", or leave blank for auto YYYY-MM).
+- Past seasons are listed below with a "View leaderboard" link → opens read-only season page showing final standings + which badges were awarded.
 
-- **Bust level distribution**: histogram ว่าผู้เล่นมักจะตกรอบที่ blind level ไหน
-- **Bust time average**: เฉลี่ยอยู่ในเกมกี่นาทีต่อรอบ + เทียบกับค่าเฉลี่ยของกลุ่ม
-- **Percentage cards**: 
-  - Win rate %, Top-3 rate %, ITM (in-the-money) rate %
-  - ROI % = (total payout − total cost) / total cost × 100
-  - Points share % = points ของเขา / total points ที่แจกทั้งหมด
-- **Performance trend**: line chart แสดง finish position rolling average 5 รอบล่าสุด
-- **Comparison radar**: เทียบกับค่าเฉลี่ยกลุ่ม (5 แกน: avg finish, ROI, top-3 rate, survival time, aggression = rebuys/round)
+### User-visible past seasons
+- New public route `/seasons` listing all closed seasons.
+- New `/seasons/$id` showing the frozen leaderboard + badge winners.
+- Top-nav gets a "Seasons" tab.
 
-## 4. Admin: อัปโหลดรูปโปรไฟล์ผู้เล่น
+### Badge system
+Admin section "Badges" with full CRUD:
+- Each badge has: name, emoji/icon, color, description, type = `manual` or `auto`, and (for auto) a `rule` enum.
+- Badges show next to player names everywhere (list, detail, round results).
+- Admin can also **manually grant/revoke** any badge to any player from the player detail page.
 
-- สร้าง Supabase Storage bucket `player-avatars` (public)
-- เพิ่ม column `players.avatar_url` (text, nullable) — ยังเก็บ `avatar_color` เป็น fallback
-- ใน `/admin` page ของแต่ละ player: ปุ่ม upload (drag-drop / click) → resize เป็น 256×256 ฝั่ง client → upload → save URL
-- ทุกที่ที่ render avatar (AppShell, players list, round detail, player detail): ถ้ามี `avatar_url` แสดงรูป, ไม่งั้น fallback เป็นวงกลมสี + initials เหมือนเดิม
-- ปุ่ม "Remove photo" ด้วย
+**Starter badges I'll seed (admin can edit/delete):**
 
-## 5. ใช้ประโยชน์จาก Tournament Clock ให้สูงสุด
+| Badge | Icon | Rule | Description |
+|---|---|---|---|
+| Season Champion | 🥇 | auto: season rank 1 | Won a season |
+| Runner-up | 🥈 | auto: season rank 2 | Finished 2nd in a season |
+| Bronze | 🥉 | auto: season rank 3 | Finished 3rd in a season |
+| First Blood | 🩸 | auto: first ever win | First tournament win |
+| Iron Man | 🛡️ | auto: played every round in a season | Perfect attendance |
+| High Roller | 💎 | auto: biggest single-round win in a season | Biggest pot in a season |
+| Comeback Kid | 🔥 | auto: won after ≥2 rebuys | Won despite ≥2 rebuys |
+| Bubble Boy | 🫧 | auto: most "just out of money" finishes in a season | Most bubble finishes |
+| Shark | 🦈 | manual | Admin-granted |
+| Fish | 🐟 | manual | Admin-granted (fun tag) |
 
-ปัจจุบันหน้า `/clock` มีแต่นาฬิกา แต่ไม่ได้บันทึก timeline กลับเข้า DB จริงจัง จะปรับ:
+## Technical section
 
-- ตอนกด **Knockout** ในนาฬิกา → บันทึก `bust_time_seconds` (จับจากเวลาที่ผ่านไปตั้งแต่เริ่มรอบ) + `bust_level` + `bust_sb/bb` อัตโนมัติ
-- ตอนกด **Rebuy** → log timestamp ของ rebuy (เก็บใน `round_results.rebuy_times` jsonb array)
-- ตอนจบรอบ (กด "Save round") → ทุกอย่างถูกบันทึกครบ ผู้เล่นไม่ต้องมานั่งกรอกเองที่หลัง
-- ข้อมูลพวกนี้จะ feed เข้า graph ในข้อ 2 และ 3 โดยตรง
+### DB migration
+- `seasons` table: `id`, `name`, `started_at`, `ended_at` (nullable = active), `created_at`. GRANTs + public SELECT policy.
+- `rounds.season_id uuid references seasons(id)` — backfill existing rounds into a single "Season 1" row.
+- `badges` table: `id`, `name`, `icon`, `color`, `description`, `kind` ('manual'|'auto'), `auto_rule` (enum nullable), `created_at`. Admin-only writes via server fn.
+- `player_badges` table: `id`, `player_id`, `badge_id`, `season_id` (nullable for lifetime badges), `awarded_at`, `note`. Unique (player_id, badge_id, season_id).
+- `season_standings` snapshot table: `season_id`, `player_id`, `rank`, `points`, `wins`, `rounds`, `net`. Frozen at season close.
+- All public SELECT; writes via `createServerFn` with admin-password check (same pattern as existing `updateRound`).
 
----
+### Server functions (add to `src/lib/api/admin.functions.ts`)
+- `endSeason({ password, newSeasonName? })` — snapshots, awards auto-badges, closes + opens season in one transaction.
+- `createBadge / updateBadge / deleteBadge`.
+- `grantBadge / revokeBadge` (manual).
+- `updatePlayer` extended to optionally pin/feature badges.
 
-## Technical Notes
+### Queries (`src/lib/queries.ts`)
+- `useSeasons()`, `useSeason(id)`, `useSeasonStandings(id)`, `useBadges()`, `usePlayerBadges()`.
+- Add `season_id` filter to existing `useResults()` / `useRounds()` for the season selector.
 
-**DB migration (1 ครั้ง):**
-```
-ALTER TABLE round_results 
-  ADD COLUMN bust_time_seconds integer,
-  ADD COLUMN rebuy_times jsonb DEFAULT '[]'::jsonb;
-ALTER TABLE players 
-  ADD COLUMN avatar_url text;
-```
-+ create storage bucket `player-avatars` (public read, admin-gated write via server function)
+### New files
+- `src/routes/seasons.tsx` + `src/routes/seasons.$id.tsx`.
+- `src/components/BadgeChip.tsx` (icon + tooltip).
+- `src/components/SeasonSelect.tsx`.
 
-**Server functions ใหม่** (ทั้งหมด password-gated):
-- `updateRoundResults` — แก้ผลรอบ
-- `updateRound` — แก้ meta ของรอบ
-- `uploadPlayerAvatar` — รับ base64, upload ขึ้น storage, save URL
-- `removePlayerAvatar`
+### Files edited
+- `src/routes/players.tsx`, `src/routes/players.$id.tsx`, `src/routes/rounds.tsx`, `src/routes/admin.tsx`, `src/components/AppShell.tsx` (add Seasons nav), `src/lib/queries.ts`, `src/lib/api/admin.functions.ts`.
 
-**Files หลักที่แตะ:**
-- `src/styles.css` — dark theme tokens, button variants
-- `src/routes/__root.tsx` — theme provider
-- `src/components/AppShell.tsx` — theme toggle, avatar render
-- `src/routes/rounds.$id.tsx` — timeline chart, edit dialog
-- `src/routes/players.$id.tsx` — analytics ใหม่
-- `src/routes/admin.tsx` — avatar upload UI
-- `src/routes/clock.tsx` — auto-log bust time + rebuy time
-- `src/lib/api/admin.functions.ts` — server functions ใหม่
-- `src/lib/queries.ts` — types ใหม่
-
----
-
-## คำถามก่อนเริ่ม
-
-1. **Dark theme**: อยากให้ default เป็น light แล้ว user สลับเองได้ (ผ่าน toggle) หรือว่าให้ระบบจำตาม OS preference?
-2. **รูปโปรไฟล์**: จำกัดขนาดไฟล์เท่าไหร่ดี (เช่น max 2MB) และยอมรับ format ไหนบ้าง (jpg/png/webp)?
-3. **Round edit ของ admin**: อยากให้แก้ทุก field รวมถึง finish position ที่อาจกระทบ payout/points auto-calc ใหม่ทันที หรือให้ admin กรอกตัวเลขเองทั้งหมด?
+### About publishing
+ใช่ — publish เว็บไปแล้วก็ยังให้ฉันช่วยปรับและแก้ได้ตามปกติ ทุกครั้งที่แก้ใน Lovable แล้วกด Publish ใหม่ เว็บ production จะอัปเดตตาม

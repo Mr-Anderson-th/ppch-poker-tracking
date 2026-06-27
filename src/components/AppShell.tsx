@@ -1,5 +1,5 @@
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Timer, Users, ListOrdered, Lock, Unlock, Spade } from "lucide-react";
+import { LayoutDashboard, Timer, Users, ListOrdered, Lock, Unlock, Spade, Trophy } from "lucide-react";
 import { useAdminUnlocked, setAdminPassword } from "@/lib/admin-store";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -9,6 +9,7 @@ const nav = [
   { to: "/clock", label: "Clock", icon: Timer },
   { to: "/players", label: "Players", icon: Users },
   { to: "/rounds", label: "Rounds", icon: ListOrdered },
+  { to: "/seasons", label: "Seasons", icon: Trophy },
 ];
 
 export function AppShell() {
@@ -17,7 +18,6 @@ export function AppShell() {
 
   return (
     <div className="min-h-screen bg-background flex">
-      {/* Sidebar */}
       <aside className="hidden md:flex md:w-60 lg:w-64 border-r border-border bg-sidebar flex-col">
         <div className="px-5 py-5 flex items-center gap-2.5">
           <div className="size-9 rounded-xl bg-primary text-primary-foreground grid place-items-center shadow-sm btn-glow">
@@ -75,7 +75,6 @@ export function AppShell() {
         </div>
       </aside>
 
-      {/* Mobile top bar */}
       <div className="md:hidden fixed top-0 left-0 right-0 z-30 bg-card border-b border-border">
         <div className="flex items-center justify-between px-4 h-14">
           <Link to="/" className="flex items-center gap-2">
