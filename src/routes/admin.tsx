@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,13 +6,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useAdminUnlocked, setAdminPassword, getAdminPassword } from "@/lib/admin-store";
-import { verifyAdmin, upsertPlayer, deletePlayer, updateSettings, changeAdminPassword, setPlayerAvatar } from "@/lib/api/admin.functions";
+import {
+  verifyAdmin, upsertPlayer, deletePlayer, updateSettings, changeAdminPassword, setPlayerAvatar,
+  endSeason, upsertBadge, deleteBadge,
+} from "@/lib/api/admin.functions";
 import { useServerFn } from "@tanstack/react-start";
-import { usePlayers, useSettings, type Player } from "@/lib/queries";
+import { usePlayers, useSettings, useSeasons, useBadges, useRounds, useResults, type Player, type Badge as BadgeT } from "@/lib/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Lock, Unlock, Plus, Pencil, Trash2, Upload, X } from "lucide-react";
+import { Lock, Unlock, Plus, Pencil, Trash2, Upload, X, Trophy, Award } from "lucide-react";
 import { PlayerAvatar } from "@/components/Avatar";
+import { BadgeChip } from "@/components/BadgeChip";
+import { format } from "date-fns";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ title: "Admin — PPCH" }] }),
