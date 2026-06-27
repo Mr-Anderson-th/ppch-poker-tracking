@@ -27,6 +27,7 @@ export type Round = {
   total_pot: number;
   duration_seconds: number;
   notes: string | null;
+  season_id: string | null;
   created_at: string;
 };
 
@@ -58,14 +59,50 @@ export type Settings = {
   currency: string;
 };
 
+export type Season = {
+  id: string;
+  name: string;
+  started_at: string;
+  ended_at: string | null;
+  created_at: string;
+};
+
+export type Badge = {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  description: string | null;
+  kind: "manual" | "auto";
+  auto_rule: string | null;
+  sort_order: number;
+};
+
+export type PlayerBadge = {
+  id: string;
+  player_id: string;
+  badge_id: string;
+  season_id: string | null;
+  note: string | null;
+  awarded_at: string;
+};
+
+export type SeasonStanding = {
+  id: string;
+  season_id: string;
+  player_id: string;
+  rank: number;
+  points: number;
+  wins: number;
+  rounds_played: number;
+  net: number;
+};
+
 export function usePlayers() {
   return useQuery({
     queryKey: ["players"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("players")
-        .select("*")
-        .order("name");
+      const { data, error } = await supabase.from("players").select("*").order("name");
       if (error) throw error;
       return data as Player[];
     },
@@ -81,7 +118,7 @@ export function useRounds() {
         .select("*")
         .order("played_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []).map((r) => ({
+      return (data ?? []).map((r: any) => ({
         ...r,
         payout_structure: r.payout_structure as unknown as number[],
       })) as Round[];
@@ -125,7 +162,7 @@ export function useRound(id: string) {
       if (error) throw error;
       return {
         ...data,
-        payout_structure: data.payout_structure as unknown as number[],
+        payout_structure: (data as any).payout_structure as unknown as number[],
       } as Round;
     },
   });
@@ -145,6 +182,58 @@ export function useRoundResults(roundId: string) {
         ...r,
         rebuy_times: (r.rebuy_times as unknown as number[]) ?? [],
       })) as RoundResult[];
+    },
+  });
+}
+
+export function useSeasons() {
+  return useQuery({
+    queryKey: ["seasons"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("seasons")
+        .select("*")
+        .order("started_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as Season[];
+    },
+  });
+}
+
+export function useBadges() {
+  return useQuery({
+    queryKey: ["badges"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("badges")
+        .select("*")
+        .order("sort_order");
+      if (error) throw error;
+      return (data ?? []) as Badge[];
+    },
+  });
+}
+
+export function usePlayerBadges() {
+  return useQuery({
+    queryKey: ["player_badges"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).from("player_badges").select("*");
+      if (error) throw error;
+      return (data ?? []) as PlayerBadge[];
+    },
+  });
+}
+
+export function useSeasonStandings(seasonId?: string) {
+  return useQuery({
+    queryKey: ["season_standings", seasonId ?? "all"],
+    queryFn: async () => {
+      let q = (supabase as any).from("season_standings").select("*").order("rank");
+      if (seasonId) q = q.eq("season_id", seasonId);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []) as SeasonStanding[];
     },
   });
 }

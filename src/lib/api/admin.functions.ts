@@ -60,7 +60,6 @@ export const setPlayerAvatar = createServerFn({ method: "POST" })
     z.object({
       password: z.string().min(1),
       id: z.string().uuid(),
-      // base64 data URL — limit ~600KB
       avatar_url: z.string().max(800_000).nullable(),
     }).parse(d),
   )
@@ -119,7 +118,6 @@ export const changeAdminPassword = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-// Round save (no password — anyone with the clock can save)
 const resultSchema = z.object({
   player_id: z.string().uuid(),
   finish_position: z.number().int().min(1).max(100),
@@ -160,6 +158,11 @@ export const saveRound = createServerFn({ method: "POST" })
       100, 75, 60, 50, 40, 30, 25, 20, 15, 10,
     ];
 
+    // Attach to current active season
+    const { data: season } = await (sb as any)
+      .from("seasons").select("id").is("ended_at", null)
+      .order("started_at", { ascending: false }).limit(1).maybeSingle();
+
     const totalRebuys = round.results.reduce((s, r) => s + (r.rebuys ?? 0), 0);
     const totalPlayers = round.results.length;
     const totalPot = totalPlayers * round.buy_in + totalRebuys * round.rebuy_amount;
@@ -181,7 +184,8 @@ export const saveRound = createServerFn({ method: "POST" })
         total_pot: totalPot,
         duration_seconds: round.duration_seconds,
         notes: round.notes ?? null,
-      })
+        season_id: season?.id ?? null,
+      } as any)
       .select("id")
       .single();
     if (error) throw new Error(error.message);
@@ -224,7 +228,6 @@ export const deleteRound = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-// Edit existing round meta + results (admin)
 const editResultSchema = z.object({
   id: z.string().uuid(),
   finish_position: z.number().int().min(1).max(100),
@@ -241,13 +244,7 @@ export const updateRound = createServerFn({ method: "POST" })
   .inputValidator((d: {
     password: string;
     id: string;
-    round: {
-      name?: string;
-      played_at?: string;
-      buy_in?: number;
-      rebuy_amount?: number;
-      notes?: string | null;
-    };
+    round: { name?: string; played_at?: string; buy_in?: number; rebuy_amount?: number; notes?: string | null };
     results: z.infer<typeof editResultSchema>[];
   }) =>
     z.object({
@@ -267,7 +264,6 @@ export const updateRound = createServerFn({ method: "POST" })
     await verify(data.password);
     const sb = await admin();
 
-    // Fetch current round for buy_in/rebuy fallback
     const { data: existing, error: ge } = await sb.from("rounds").select("buy_in,rebuy_amount").eq("id", data.id).single();
     if (ge) throw new Error(ge.message);
     const buyIn = data.round.buy_in ?? Number(existing.buy_in);
@@ -302,3 +298,236 @@ export const updateRound = createServerFn({ method: "POST" })
     }
     return { ok: true };
   });
+
+// ========== BADGES ==========
+
+const badgeSchema = z.object({
+  id: z.string().uuid().optional(),
+  name: z.string().trim().min(1).max(60),
+  icon: z.string().trim().min(1).max(8),
+  color: z.string().trim().max(20),
+  description: z.string().max(300).optional().nullable(),
+  kind: z.enum(["manual", "auto"]),
+  auto_rule: z.string().max(60).optional().nullable(),
+  sort_order: z.number().int().optional(),
+});
+
+export const upsertBadge = createServerFn({ method: "POST" })
+  .inputValidator((d: { password: string; badge: z.infer<typeof badgeSchema> }) =>
+    z.object({ password: z.string().min(1), badge: badgeSchema }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    await verify(data.password);
+    const sb = await admin();
+    const { badge } = data;
+    const row = {
+      name: badge.name,
+      icon: badge.icon,
+      color: badge.color,
+      description: badge.description ?? null,
+      kind: badge.kind,
+      auto_rule: badge.kind === "auto" ? (badge.auto_rule ?? null) : null,
+      sort_order: badge.sort_order ?? 0,
+    };
+    if (badge.id) {
+      const { error } = await (sb as any).from("badges").update(row).eq("id", badge.id);
+      if (error) throw new Error(error.message);
+      return { id: badge.id };
+    }
+    const { data: r, error } = await (sb as any).from("badges").insert(row).select("id").single();
+    if (error) throw new Error(error.message);
+    return { id: r.id };
+  });
+
+export const deleteBadge = createServerFn({ method: "POST" })
+  .inputValidator((d: { password: string; id: string }) =>
+    z.object({ password: z.string().min(1), id: z.string().uuid() }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    await verify(data.password);
+    const sb = await admin();
+    const { error } = await (sb as any).from("badges").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const grantBadge = createServerFn({ method: "POST" })
+  .inputValidator((d: { password: string; player_id: string; badge_id: string; season_id?: string | null; note?: string | null }) =>
+    z.object({
+      password: z.string().min(1),
+      player_id: z.string().uuid(),
+      badge_id: z.string().uuid(),
+      season_id: z.string().uuid().nullable().optional(),
+      note: z.string().max(200).nullable().optional(),
+    }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    await verify(data.password);
+    const sb = await admin();
+    const { error } = await (sb as any).from("player_badges").upsert({
+      player_id: data.player_id,
+      badge_id: data.badge_id,
+      season_id: data.season_id ?? null,
+      note: data.note ?? null,
+    }, { onConflict: "player_id,badge_id,season_id" });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const revokeBadge = createServerFn({ method: "POST" })
+  .inputValidator((d: { password: string; id: string }) =>
+    z.object({ password: z.string().min(1), id: z.string().uuid() }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    await verify(data.password);
+    const sb = await admin();
+    const { error } = await (sb as any).from("player_badges").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+// ========== END SEASON ==========
+
+export const endSeason = createServerFn({ method: "POST" })
+  .inputValidator((d: { password: string; newSeasonName?: string }) =>
+    z.object({
+      password: z.string().min(1),
+      newSeasonName: z.string().trim().min(1).max(80).optional(),
+    }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    await verify(data.password);
+    const sb = await admin();
+
+    // Find active season
+    const { data: active, error: ae } = await (sb as any)
+      .from("seasons").select("*").is("ended_at", null)
+      .order("started_at", { ascending: false }).limit(1).maybeSingle();
+    if (ae) throw new Error(ae.message);
+    if (!active) throw new Error("No active season to end");
+
+    // Pull rounds + results for this season
+    const { data: rounds, error: re } = await (sb as any)
+      .from("rounds").select("id,total_players,payout_structure").eq("season_id", active.id);
+    if (re) throw new Error(re.message);
+    const roundIds = (rounds ?? []).map((r: any) => r.id);
+
+    if (roundIds.length === 0) {
+      // Just close and open new
+      const closed = new Date().toISOString();
+      await (sb as any).from("seasons").update({ ended_at: closed }).eq("id", active.id);
+      const newName = data.newSeasonName ?? defaultSeasonName();
+      const { data: ns, error: ne } = await (sb as any).from("seasons").insert({ name: newName }).select("id").single();
+      if (ne) throw new Error(ne.message);
+      return { ok: true, closed_season_id: active.id, new_season_id: ns.id, awarded: 0 };
+    }
+
+    const { data: results, error: rre } = await (sb as any)
+      .from("round_results").select("*").in("round_id", roundIds);
+    if (rre) throw new Error(rre.message);
+
+    // Aggregate per player
+    type Agg = { player_id: string; points: number; wins: number; rounds_played: number; net: number; bestNet: number; comeback: boolean; bubbleCount: number };
+    const perPlayer = new Map<string, Agg>();
+    const roundById = new Map<string, any>((rounds ?? []).map((r: any) => [r.id, r]));
+
+    for (const r of (results ?? []) as any[]) {
+      let a = perPlayer.get(r.player_id);
+      if (!a) {
+        a = { player_id: r.player_id, points: 0, wins: 0, rounds_played: 0, net: 0, bestNet: -Infinity, comeback: false, bubbleCount: 0 };
+        perPlayer.set(r.player_id, a);
+      }
+      a.points += r.points_awarded;
+      a.rounds_played += 1;
+      a.net += Number(r.net_amount);
+      if (r.finish_position === 1) a.wins += 1;
+      if (Number(r.net_amount) > a.bestNet) a.bestNet = Number(r.net_amount);
+      if (r.finish_position === 1 && r.rebuys >= 2) a.comeback = true;
+      const rd = roundById.get(r.round_id);
+      const paidCount = Array.isArray(rd?.payout_structure) ? rd.payout_structure.length : 1;
+      if (r.finish_position === paidCount + 1) a.bubbleCount += 1;
+    }
+
+    const standings = Array.from(perPlayer.values()).sort((a, b) => b.points - a.points || b.wins - a.wins || b.net - a.net);
+    const ranked = standings.map((s, i) => ({ ...s, rank: i + 1 }));
+
+    // Snapshot
+    const standingsRows = ranked.map((s) => ({
+      season_id: active.id,
+      player_id: s.player_id,
+      rank: s.rank,
+      points: s.points,
+      wins: s.wins,
+      rounds_played: s.rounds_played,
+      net: s.net,
+    }));
+    if (standingsRows.length > 0) {
+      const { error: se } = await (sb as any).from("season_standings").insert(standingsRows);
+      if (se) throw new Error(se.message);
+    }
+
+    // Load badges (by auto_rule)
+    const { data: badges } = await (sb as any).from("badges").select("*");
+    const byRule = new Map<string, any>();
+    for (const b of (badges ?? []) as any[]) if (b.auto_rule) byRule.set(b.auto_rule, b);
+
+    const awards: any[] = [];
+    const award = (rule: string, player_id: string, note: string, lifetime = false) => {
+      const b = byRule.get(rule);
+      if (!b) return;
+      awards.push({ player_id, badge_id: b.id, season_id: lifetime ? null : active.id, note });
+    };
+
+    if (ranked[0]) award("season_rank_1", ranked[0].player_id, `Champion of ${active.name}`);
+    if (ranked[1]) award("season_rank_2", ranked[1].player_id, `Runner-up in ${active.name}`);
+    if (ranked[2]) award("season_rank_3", ranked[2].player_id, `Third place in ${active.name}`);
+
+    // Biggest single-round win
+    const big = ranked.reduce((best, s) => (s.bestNet > (best?.bestNet ?? -Infinity) ? s : best), undefined as Agg | undefined);
+    if (big && big.bestNet > 0) award("biggest_win", big.player_id, `Biggest win in ${active.name}: +${Math.round(big.bestNet)}`);
+
+    // Perfect attendance
+    for (const s of ranked) {
+      if (s.rounds_played === roundIds.length && roundIds.length >= 2) {
+        award("perfect_attendance", s.player_id, `Played all ${roundIds.length} rounds in ${active.name}`);
+      }
+    }
+
+    // Comeback Kid
+    for (const s of ranked) if (s.comeback) award("comeback_win", s.player_id, `Won after 2+ rebuys in ${active.name}`);
+
+    // Most bubble
+    const maxBubble = Math.max(0, ...ranked.map((s) => s.bubbleCount));
+    if (maxBubble > 0) for (const s of ranked) if (s.bubbleCount === maxBubble) award("most_bubble", s.player_id, `${maxBubble} bubble finishes in ${active.name}`);
+
+    // First Blood (lifetime — first-ever win across all data)
+    const firstBlood = byRule.get("first_win");
+    if (firstBlood) {
+      const { data: existingFB } = await (sb as any)
+        .from("player_badges").select("player_id").eq("badge_id", firstBlood.id).is("season_id", null);
+      const have = new Set<string>((existingFB ?? []).map((x: any) => x.player_id));
+      for (const s of ranked) if (s.wins > 0 && !have.has(s.player_id)) {
+        awards.push({ player_id: s.player_id, badge_id: firstBlood.id, season_id: null, note: "First-ever tournament win" });
+        have.add(s.player_id);
+      }
+    }
+
+    if (awards.length > 0) {
+      const { error: aee } = await (sb as any).from("player_badges").upsert(awards, { onConflict: "player_id,badge_id,season_id" });
+      if (aee) throw new Error(aee.message);
+    }
+
+    // Close + open new
+    const closed = new Date().toISOString();
+    await (sb as any).from("seasons").update({ ended_at: closed }).eq("id", active.id);
+    const newName = data.newSeasonName ?? defaultSeasonName();
+    const { data: ns, error: nse } = await (sb as any).from("seasons").insert({ name: newName }).select("id").single();
+    if (nse) throw new Error(nse.message);
+
+    return { ok: true, closed_season_id: active.id, new_season_id: ns.id, awarded: awards.length };
+  });
+
+function defaultSeasonName(): string {
+  const d = new Date();
+  return d.toLocaleString("en-US", { month: "long", year: "numeric" });
+}
