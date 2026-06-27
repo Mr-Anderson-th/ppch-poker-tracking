@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      badges: {
+        Row: {
+          auto_rule: string | null
+          color: string
+          created_at: string
+          description: string | null
+          icon: string
+          id: string
+          kind: string
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          auto_rule?: string | null
+          color?: string
+          created_at?: string
+          description?: string | null
+          icon?: string
+          id?: string
+          kind?: string
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          auto_rule?: string | null
+          color?: string
+          created_at?: string
+          description?: string | null
+          icon?: string
+          id?: string
+          kind?: string
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
       clock_sessions: {
         Row: {
           ended_at: string | null
@@ -42,6 +78,55 @@ export type Database = {
             columns: ["round_id"]
             isOneToOne: false
             referencedRelation: "rounds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      player_badges: {
+        Row: {
+          awarded_at: string
+          badge_id: string
+          id: string
+          note: string | null
+          player_id: string
+          season_id: string | null
+        }
+        Insert: {
+          awarded_at?: string
+          badge_id: string
+          id?: string
+          note?: string | null
+          player_id: string
+          season_id?: string | null
+        }
+        Update: {
+          awarded_at?: string
+          badge_id?: string
+          id?: string
+          note?: string | null
+          player_id?: string
+          season_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "player_badges_badge_id_fkey"
+            columns: ["badge_id"]
+            isOneToOne: false
+            referencedRelation: "badges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "player_badges_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "player_badges_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
             referencedColumns: ["id"]
           },
         ]
@@ -152,6 +237,7 @@ export type Database = {
           payout_structure: Json
           played_at: string
           rebuy_amount: number
+          season_id: string | null
           starting_bb: number
           starting_sb: number
           total_players: number
@@ -170,6 +256,7 @@ export type Database = {
           payout_structure?: Json
           played_at?: string
           rebuy_amount?: number
+          season_id?: string | null
           starting_bb?: number
           starting_sb?: number
           total_players?: number
@@ -188,11 +275,95 @@ export type Database = {
           payout_structure?: Json
           played_at?: string
           rebuy_amount?: number
+          season_id?: string | null
           starting_bb?: number
           starting_sb?: number
           total_players?: number
           total_pot?: number
           total_rebuys?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rounds_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      season_standings: {
+        Row: {
+          created_at: string
+          id: string
+          net: number
+          player_id: string
+          points: number
+          rank: number
+          rounds_played: number
+          season_id: string
+          wins: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          net?: number
+          player_id: string
+          points?: number
+          rank: number
+          rounds_played?: number
+          season_id: string
+          wins?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          net?: number
+          player_id?: string
+          points?: number
+          rank?: number
+          rounds_played?: number
+          season_id?: string
+          wins?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "season_standings_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "season_standings_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      seasons: {
+        Row: {
+          created_at: string
+          ended_at: string | null
+          id: string
+          name: string
+          started_at: string
+        }
+        Insert: {
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          name: string
+          started_at?: string
+        }
+        Update: {
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          name?: string
+          started_at?: string
         }
         Relationships: []
       }
