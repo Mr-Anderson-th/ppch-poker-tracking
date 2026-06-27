@@ -188,12 +188,82 @@ function PlayerDetail() {
         <CardContent className="p-6 flex flex-wrap items-center gap-5">
           <PlayerAvatar player={player} size="xl" className="rounded-2xl" />
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl md:text-3xl font-bold">{player.name}</h1>
+            <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2 flex-wrap">
+              <span>{player.name}</span>
+              {myBadges.length > 0 && (
+                <span className="inline-flex items-center gap-1">
+                  {myBadges.map((pb) => {
+                    const b = badgeById.get(pb.badge_id);
+                    if (!b) return null;
+                    const s = pb.season_id ? seasonById.get(pb.season_id) : null;
+                    const tip = pb.note ?? (s ? `${b.name} · ${s.name}` : b.description ?? undefined);
+                    return (
+                      <span key={pb.id} className="inline-flex items-center gap-0.5 group/badge relative">
+                        <BadgeChip badge={b} tooltip={tip ?? undefined} size="sm" />
+                        {unlocked && (
+                          <button
+                            onClick={async () => {
+                              const pw = getAdminPassword();
+                              if (!pw) return;
+                              if (!confirm(`Revoke "${b.name}"?`)) return;
+                              try {
+                                await revokeFn({ data: { password: pw, id: pb.id } });
+                                queryClient.invalidateQueries({ queryKey: ["player_badges"] });
+                                toast.success("Badge revoked");
+                              } catch (e) { toast.error((e as Error).message); }
+                            }}
+                            className="opacity-0 group-hover/badge:opacity-100 transition-opacity text-destructive"
+                            title="Revoke badge"
+                          ><X className="size-3" /></button>
+                        )}
+                      </span>
+                    );
+                  })}
+                </span>
+              )}
+            </h1>
             {player.nickname && <p className="text-sm text-muted-foreground">{player.nickname}</p>}
           </div>
           {!player.active && <Badge variant="secondary">Inactive</Badge>}
+          {unlocked && (
+            <Button variant="outline" size="sm" onClick={() => setGrantOpen(true)}>
+              <Plus className="size-4 mr-1" /> Grant badge
+            </Button>
+          )}
         </CardContent>
       </Card>
+
+      {grantOpen && unlocked && (
+        <Dialog open={grantOpen} onOpenChange={(o) => !o && setGrantOpen(false)}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Grant badge to {player.name}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-2 max-h-[400px] overflow-y-auto">
+              {badges.map((b) => (
+                <button
+                  key={b.id}
+                  onClick={async () => {
+                    const pw = getAdminPassword();
+                    if (!pw) return;
+                    try {
+                      await grantFn({ data: { password: pw, player_id: player.id, badge_id: b.id, season_id: null, note: null } });
+                      queryClient.invalidateQueries({ queryKey: ["player_badges"] });
+                      toast.success(`Granted "${b.name}"`);
+                      setGrantOpen(false);
+                    } catch (e) { toast.error((e as Error).message); }
+                  }}
+                  className="flex items-center gap-2 p-3 rounded-lg border border-border hover:border-primary hover:bg-secondary/60 transition-all text-left"
+                >
+                  <BadgeChip badge={b} size="md" />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-sm">{b.name}</div>
+                    {b.description && <div className="text-[11px] text-muted-foreground line-clamp-2">{b.description}</div>}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
         <Stat label="Total Points" value={totals.points} />
