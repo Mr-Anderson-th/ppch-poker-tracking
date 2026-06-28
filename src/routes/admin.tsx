@@ -140,6 +140,7 @@ function SeasonsAdmin() {
   const { data: rounds = [] } = useRounds();
   const { data: results = [] } = useResults();
   const { data: players = [] } = usePlayers();
+  const { data: badges = [] } = useBadges();
   const queryClient = useQueryClient();
   const endFn = useServerFn(endSeason);
   const active = seasons.find((s) => !s.ended_at);
@@ -152,6 +153,62 @@ function SeasonsAdmin() {
   const activeRoundIds = new Set(activeRounds.map((r) => r.id));
   const activeResults = results.filter((r) => activeRoundIds.has(r.round_id));
   const playerCount = new Set(activeResults.map((r) => r.player_id)).size;
+  const playerById = new Map(players.map((p) => [p.id, p]));
+
+  // Live preview standings for end-season confirm
+  const previewStandings = (() => {
+    type A = { player_id: string; points: number; wins: number; rounds_played: number; net: number; bestNet: number; comeback: boolean };
+    const m = new Map<string, A>();
+    for (const r of activeResults) {
+      let a = m.get(r.player_id);
+      if (!a) { a = { player_id: r.player_id, points: 0, wins: 0, rounds_played: 0, net: 0, bestNet: -Infinity, comeback: false }; m.set(r.player_id, a); }
+      a.points += r.points_awarded;
+      a.rounds_played += 1;
+      a.net += Number(r.net_amount);
+      if (r.finish_position === 1) a.wins += 1;
+      if (Number(r.net_amount) > a.bestNet) a.bestNet = Number(r.net_amount);
+      if (r.finish_position === 1 && r.rebuys >= 2) a.comeback = true;
+    }
+    return Array.from(m.values())
+      .sort((a, b) => b.points - a.points || b.wins - a.wins || b.net - a.net)
+      .map((s, i) => ({ ...s, rank: i + 1 }));
+  })();
+
+  // Project which auto badges would be awarded
+  const projectedAwards: Array<{ player_id: string; badge: BadgeT; reason: string }> = (() => {
+    const out: Array<{ player_id: string; badge: BadgeT; reason: string }> = [];
+    const autoBadges = badges.filter((b) => b.kind === "auto" && b.auto_rule);
+    const byRule = (rule: string) => autoBadges.find((b) => b.auto_rule === rule);
+    const r1 = byRule("season_rank_1"), r2 = byRule("season_rank_2"), r3 = byRule("season_rank_3");
+    if (r1 && previewStandings[0]) out.push({ player_id: previewStandings[0].player_id, badge: r1, reason: "Season champion" });
+    if (r2 && previewStandings[1]) out.push({ player_id: previewStandings[1].player_id, badge: r2, reason: "Runner-up" });
+    if (r3 && previewStandings[2]) out.push({ player_id: previewStandings[2].player_id, badge: r3, reason: "Third place" });
+    const biggest = byRule("biggest_win");
+    if (biggest && previewStandings.length) {
+      const top = [...previewStandings].sort((a, b) => b.bestNet - a.bestNet)[0];
+      if (top && top.bestNet > 0) out.push({ player_id: top.player_id, badge: biggest, reason: `Biggest single win (+${top.bestNet.toLocaleString()})` });
+    }
+    const perfect = byRule("perfect_attendance");
+    if (perfect && activeRounds.length > 0) {
+      for (const s of previewStandings) {
+        if (s.rounds_played === activeRounds.length) out.push({ player_id: s.player_id, badge: perfect, reason: `Played all ${activeRounds.length} rounds` });
+      }
+    }
+    const comeback = byRule("comeback_win");
+    if (comeback) {
+      for (const s of previewStandings) {
+        if (s.comeback) out.push({ player_id: s.player_id, badge: comeback, reason: "Won after 2+ rebuys" });
+      }
+    }
+    return out;
+  })();
+
+  const awardsByPlayer = new Map<string, Array<{ badge: BadgeT; reason: string }>>();
+  for (const a of projectedAwards) {
+    if (!awardsByPlayer.has(a.player_id)) awardsByPlayer.set(a.player_id, []);
+    awardsByPlayer.get(a.player_id)!.push({ badge: a.badge, reason: a.reason });
+  }
+
 
   const onEnd = async () => {
     const pw = getAdminPassword();
