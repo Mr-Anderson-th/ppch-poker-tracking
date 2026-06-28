@@ -5,7 +5,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { usePlayers, useResults, useRounds, useSettings, type Player, type RoundResult } from "@/lib/queries";
+import { usePlayers, useResults, useRounds, useSettings, useSeasons, type Player, type RoundResult } from "@/lib/queries";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
