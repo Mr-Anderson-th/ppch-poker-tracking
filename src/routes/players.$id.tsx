@@ -425,6 +425,65 @@ function PlayerDetail() {
       </div>
 
       <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Season history</CardTitle>
+          <p className="text-xs text-muted-foreground">Performance across every season this player participated in.</p>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-xs text-muted-foreground">
+                <tr className="border-b border-border">
+                  <th className="text-left px-4 py-2">Season</th>
+                  <th className="text-left px-2 py-2">Status</th>
+                  <th className="text-right px-2 py-2">Rank</th>
+                  <th className="text-right px-2 py-2">Points</th>
+                  <th className="text-right px-2 py-2">Wins</th>
+                  <th className="text-right px-2 py-2">Rounds</th>
+                  <th className="text-right px-2 py-2">Net</th>
+                  <th className="text-left px-4 py-2">Badges</th>
+                </tr>
+              </thead>
+              <tbody>
+                {seasonHistory.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">No season data yet</td></tr>}
+                {seasonHistory.map((h) => {
+                  const medal = h.rank === 1 ? "bg-warning/20 text-warning" : h.rank === 2 ? "bg-info/20 text-info" : h.rank === 3 ? "bg-accent text-accent-foreground" : "bg-secondary text-muted-foreground";
+                  const isActive = !h.season.ended_at;
+                  return (
+                    <tr key={h.season.id} className="border-b border-border last:border-0 hover:bg-secondary/40">
+                      <td className="px-4 py-2 font-medium">
+                        <Link to="/seasons/$id" params={{ id: h.season.id }} className="hover:text-primary">{h.season.name}</Link>
+                      </td>
+                      <td className="px-2 py-2">
+                        <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${isActive ? "bg-success/15 text-success" : "bg-secondary text-muted-foreground"}`}>
+                          {isActive ? "Active" : "Closed"}
+                        </span>
+                      </td>
+                      <td className="px-2 py-2 text-right">
+                        {h.rank ? <span className={`inline-grid place-items-center size-6 rounded text-xs font-bold ${medal}`}>{h.rank}</span> : "—"}
+                      </td>
+                      <td className="px-2 py-2 text-right font-semibold tabular-nums">{h.points}</td>
+                      <td className="px-2 py-2 text-right tabular-nums">{h.wins}</td>
+                      <td className="px-2 py-2 text-right text-muted-foreground tabular-nums">{h.rounds_played}</td>
+                      <td className={`px-2 py-2 text-right font-mono ${h.net >= 0 ? "text-success" : "text-destructive"}`}>
+                        {h.net >= 0 ? "+" : ""}{h.net.toLocaleString()}
+                      </td>
+                      <td className="px-4 py-2">
+                        <div className="flex flex-wrap gap-1">
+                          {h.badges.map((b, i) => <BadgeChip key={i} badge={b} tooltip={b.description ?? undefined} size="xs" />)}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+
         <CardHeader><CardTitle className="text-base">Round history</CardTitle></CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
