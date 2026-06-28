@@ -41,7 +41,7 @@ function RoundsPage() {
   const search = Route.useSearch();
 
   const setSearch = (patch: Partial<RoundsSearch>) =>
-    navigate({ to: "/rounds", search: (prev) => ({ ...prev, ...patch }) });
+    navigate({ to: "/rounds", search: (prev: RoundsSearch) => ({ ...prev, ...patch }) });
 
   const filtered = useMemo(() => {
     let arr = [...rounds].sort((a, b) => +new Date(b.played_at) - +new Date(a.played_at));
