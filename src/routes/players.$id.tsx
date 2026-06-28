@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { usePlayers, useResults, useRounds, useSettings, useBadges, usePlayerBadges, useSeasons } from "@/lib/queries";
+import { usePlayers, useResults, useRounds, useSettings, useBadges, usePlayerBadges, useSeasons, useSeasonStandings } from "@/lib/queries";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, RadarChart, Radar, PolarAngleAxis, PolarGrid, PolarRadiusAxis } from "recharts";
 import { format } from "date-fns";
 import { PlayerAvatar } from "@/components/Avatar";
