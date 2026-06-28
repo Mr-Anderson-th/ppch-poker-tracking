@@ -12,7 +12,6 @@ import {
 } from "@/lib/api/admin.functions";
 import { useServerFn } from "@tanstack/react-start";
 import { usePlayers, useSettings, useSeasons, useBadges, useRounds, useResults, type Player, type Badge as BadgeT } from "@/lib/queries";
-import { PlayerAvatar as PlayerAvatarPreview } from "@/components/Avatar";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Lock, Unlock, Plus, Pencil, Trash2, Upload, X, Trophy, Award } from "lucide-react";
