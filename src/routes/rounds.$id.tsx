@@ -33,7 +33,7 @@ function fmtMMSS(sec: number | null) {
 
 function RoundDetail() {
   const { id } = useParams({ from: "/rounds/$id" });
-  const { data: round } = useRound(id);
+  const { data: round, isLoading, error } = useRound(id);
   const { data: results = [] } = useRoundResults(id);
   const { data: players = [] } = usePlayers();
   const { data: settings } = useSettings();
@@ -46,7 +46,31 @@ function RoundDetail() {
 
   const playerById = new Map(players.map((p) => [p.id, p]));
 
-  if (!round) return <div className="p-8"><Link to="/rounds" className="text-primary">← Back</Link><p className="mt-4">Loading…</p></div>;
+  if (isLoading) {
+    return (
+      <div className="p-8 max-w-[1500px] mx-auto space-y-4">
+        <Link to="/rounds" className="text-sm text-muted-foreground hover:text-primary">← All rounds</Link>
+        <div className="space-y-3 animate-pulse">
+          <div className="h-24 rounded-xl bg-secondary/60" />
+          <div className="h-72 rounded-xl bg-secondary/40" />
+          <div className="h-96 rounded-xl bg-secondary/40" />
+        </div>
+      </div>
+    );
+  }
+  if (error || !round) {
+    return (
+      <div className="p-8 max-w-md mx-auto text-center space-y-4">
+        <Link to="/rounds" className="text-sm text-muted-foreground hover:text-primary">← All rounds</Link>
+        <Card><CardContent className="p-8 space-y-2">
+          <h2 className="text-lg font-bold">Round not found</h2>
+          <p className="text-sm text-muted-foreground">{error ? (error as Error).message : "This round may have been deleted."}</p>
+          <Button asChild variant="outline" size="sm" className="mt-2"><Link to="/rounds">Back to rounds</Link></Button>
+        </CardContent></Card>
+      </div>
+    );
+  }
+
 
   const blindProgression = buildBlindLevels(round.starting_sb, round.starting_bb, Number(round.blind_multiplier), 12);
 

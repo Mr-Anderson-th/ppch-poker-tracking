@@ -5,7 +5,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { usePlayers, useResults, useRounds, useSettings, type Player, type RoundResult } from "@/lib/queries";
+import { usePlayers, useResults, useRounds, useSettings, useSeasons, type Player, type RoundResult } from "@/lib/queries";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
@@ -28,10 +28,27 @@ function fmtMoney(n: number, c = "฿") {
 
 function Dashboard() {
   const { data: players = [] } = usePlayers();
-  const { data: rounds = [] } = useRounds();
-  const { data: results = [] } = useResults();
+  const { data: allRounds = [] } = useRounds();
+  const { data: allResults = [] } = useResults();
   const { data: settings } = useSettings();
+  const { data: seasons = [] } = useSeasons();
   const currency = settings?.currency ?? "฿";
+
+  const activeSeason = useMemo(() => seasons.find((s) => !s.ended_at), [seasons]);
+  // Default to active season; "__all" = lifetime
+  const [seasonFilter, setSeasonFilter] = useState<string>("__active");
+  const effectiveSeasonId = seasonFilter === "__active" ? activeSeason?.id ?? null : seasonFilter === "__all" ? null : seasonFilter;
+  const selectedSeason = effectiveSeasonId ? seasons.find((s) => s.id === effectiveSeasonId) : null;
+
+  const rounds = useMemo(
+    () => (effectiveSeasonId ? allRounds.filter((r) => r.season_id === effectiveSeasonId) : allRounds),
+    [allRounds, effectiveSeasonId],
+  );
+  const roundIdSet = useMemo(() => new Set(rounds.map((r) => r.id)), [rounds]);
+  const results = useMemo(
+    () => (effectiveSeasonId ? allResults.filter((r) => roundIdSet.has(r.round_id)) : allResults),
+    [allResults, roundIdSet, effectiveSeasonId],
+  );
 
   const playerById = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
 
@@ -171,12 +188,30 @@ function Dashboard() {
 
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-[1500px] mx-auto">
-      <header>
-        <h1 className="text-2xl md:text-3xl font-bold">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Stats across {gameStats.totalRounds} rounds · {gameStats.uniquePlayers} players
-        </p>
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold">Dashboard</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Showing{" "}
+            <span className="font-medium text-foreground">
+              {seasonFilter === "__all" ? "All-time" : selectedSeason ? selectedSeason.name : "no active season"}
+            </span>
+            {" · "}{gameStats.totalRounds} rounds · {gameStats.uniquePlayers} players
+            {" · "}<Link to="/seasons" className="text-primary hover:underline">View past seasons →</Link>
+          </p>
+        </div>
+        <Select value={seasonFilter} onValueChange={setSeasonFilter}>
+          <SelectTrigger className="w-[220px] h-9"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__active">Current season{activeSeason ? ` (${activeSeason.name})` : ""}</SelectItem>
+            <SelectItem value="__all">All-time</SelectItem>
+            {seasons.filter((s) => s.ended_at).map((s) => (
+              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </header>
+
 
       {/* Game stats grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

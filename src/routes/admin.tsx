@@ -140,6 +140,7 @@ function SeasonsAdmin() {
   const { data: rounds = [] } = useRounds();
   const { data: results = [] } = useResults();
   const { data: players = [] } = usePlayers();
+  const { data: badges = [] } = useBadges();
   const queryClient = useQueryClient();
   const endFn = useServerFn(endSeason);
   const active = seasons.find((s) => !s.ended_at);
@@ -152,6 +153,62 @@ function SeasonsAdmin() {
   const activeRoundIds = new Set(activeRounds.map((r) => r.id));
   const activeResults = results.filter((r) => activeRoundIds.has(r.round_id));
   const playerCount = new Set(activeResults.map((r) => r.player_id)).size;
+  const playerById = new Map(players.map((p) => [p.id, p]));
+
+  // Live preview standings for end-season confirm
+  const previewStandings = (() => {
+    type A = { player_id: string; points: number; wins: number; rounds_played: number; net: number; bestNet: number; comeback: boolean };
+    const m = new Map<string, A>();
+    for (const r of activeResults) {
+      let a = m.get(r.player_id);
+      if (!a) { a = { player_id: r.player_id, points: 0, wins: 0, rounds_played: 0, net: 0, bestNet: -Infinity, comeback: false }; m.set(r.player_id, a); }
+      a.points += r.points_awarded;
+      a.rounds_played += 1;
+      a.net += Number(r.net_amount);
+      if (r.finish_position === 1) a.wins += 1;
+      if (Number(r.net_amount) > a.bestNet) a.bestNet = Number(r.net_amount);
+      if (r.finish_position === 1 && r.rebuys >= 2) a.comeback = true;
+    }
+    return Array.from(m.values())
+      .sort((a, b) => b.points - a.points || b.wins - a.wins || b.net - a.net)
+      .map((s, i) => ({ ...s, rank: i + 1 }));
+  })();
+
+  // Project which auto badges would be awarded
+  const projectedAwards: Array<{ player_id: string; badge: BadgeT; reason: string }> = (() => {
+    const out: Array<{ player_id: string; badge: BadgeT; reason: string }> = [];
+    const autoBadges = badges.filter((b) => b.kind === "auto" && b.auto_rule);
+    const byRule = (rule: string) => autoBadges.find((b) => b.auto_rule === rule);
+    const r1 = byRule("season_rank_1"), r2 = byRule("season_rank_2"), r3 = byRule("season_rank_3");
+    if (r1 && previewStandings[0]) out.push({ player_id: previewStandings[0].player_id, badge: r1, reason: "Season champion" });
+    if (r2 && previewStandings[1]) out.push({ player_id: previewStandings[1].player_id, badge: r2, reason: "Runner-up" });
+    if (r3 && previewStandings[2]) out.push({ player_id: previewStandings[2].player_id, badge: r3, reason: "Third place" });
+    const biggest = byRule("biggest_win");
+    if (biggest && previewStandings.length) {
+      const top = [...previewStandings].sort((a, b) => b.bestNet - a.bestNet)[0];
+      if (top && top.bestNet > 0) out.push({ player_id: top.player_id, badge: biggest, reason: `Biggest single win (+${top.bestNet.toLocaleString()})` });
+    }
+    const perfect = byRule("perfect_attendance");
+    if (perfect && activeRounds.length > 0) {
+      for (const s of previewStandings) {
+        if (s.rounds_played === activeRounds.length) out.push({ player_id: s.player_id, badge: perfect, reason: `Played all ${activeRounds.length} rounds` });
+      }
+    }
+    const comeback = byRule("comeback_win");
+    if (comeback) {
+      for (const s of previewStandings) {
+        if (s.comeback) out.push({ player_id: s.player_id, badge: comeback, reason: "Won after 2+ rebuys" });
+      }
+    }
+    return out;
+  })();
+
+  const awardsByPlayer = new Map<string, Array<{ badge: BadgeT; reason: string }>>();
+  for (const a of projectedAwards) {
+    if (!awardsByPlayer.has(a.player_id)) awardsByPlayer.set(a.player_id, []);
+    awardsByPlayer.get(a.player_id)!.push({ badge: a.badge, reason: a.reason });
+  }
+
 
   const onEnd = async () => {
     const pw = getAdminPassword();
@@ -213,15 +270,66 @@ function SeasonsAdmin() {
         )}
 
         <Dialog open={confirmOpen} onOpenChange={(o) => !o && setConfirmOpen(false)}>
-          <DialogContent>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>End "{active?.name}"?</DialogTitle></DialogHeader>
-            <div className="space-y-3 text-sm">
+            <div className="space-y-4 text-sm">
               <p>This will:</p>
               <ul className="list-disc list-inside text-muted-foreground space-y-1">
                 <li>Freeze a final leaderboard for <strong>{active?.name}</strong> ({playerCount} players, {activeRounds.length} rounds).</li>
                 <li>Auto-award badges (Champion 🥇, Runner-up 🥈, Bronze 🥉, plus any auto-rule badges).</li>
                 <li>Start a fresh season with empty standings (existing rounds stay attached to the old season).</li>
               </ul>
+
+              {previewStandings.length > 0 && (
+                <div className="border border-border rounded-lg overflow-hidden">
+                  <div className="px-3 py-2 bg-secondary/40 text-xs font-semibold uppercase tracking-wider">Preview · Final standings</div>
+                  <div className="max-h-[260px] overflow-y-auto">
+                    <table className="w-full text-xs">
+                      <thead className="text-muted-foreground bg-secondary/20">
+                        <tr>
+                          <th className="text-left px-3 py-1.5">#</th>
+                          <th className="text-left px-2 py-1.5">Player</th>
+                          <th className="text-right px-2 py-1.5">Pts</th>
+                          <th className="text-right px-2 py-1.5">W</th>
+                          <th className="text-right px-2 py-1.5">Net</th>
+                          <th className="text-left px-3 py-1.5">Will earn</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {previewStandings.slice(0, 10).map((s) => {
+                          const p = playerById.get(s.player_id);
+                          const awards = awardsByPlayer.get(s.player_id) ?? [];
+                          const medal = s.rank === 1 ? "bg-warning/20 text-warning" : s.rank === 2 ? "bg-info/20 text-info" : s.rank === 3 ? "bg-accent text-accent-foreground" : "bg-secondary text-muted-foreground";
+                          return (
+                            <tr key={s.player_id} className="border-t border-border">
+                              <td className="px-3 py-1.5"><span className={`inline-grid place-items-center size-5 rounded text-[10px] font-bold ${medal}`}>{s.rank}</span></td>
+                              <td className="px-2 py-1.5 font-medium">{p?.name ?? "—"}</td>
+                              <td className="px-2 py-1.5 text-right font-semibold tabular-nums">{s.points}</td>
+                              <td className="px-2 py-1.5 text-right tabular-nums">{s.wins}</td>
+                              <td className={`px-2 py-1.5 text-right font-mono ${s.net >= 0 ? "text-success" : "text-destructive"}`}>{s.net >= 0 ? "+" : ""}{s.net.toLocaleString()}</td>
+                              <td className="px-3 py-1.5">
+                                <div className="flex flex-wrap gap-1">
+                                  {awards.map((a, i) => (
+                                    <span key={i} title={a.reason} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px]">
+                                      <span>{a.badge.icon}</span><span>{a.badge.name}</span>
+                                    </span>
+                                  ))}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  {projectedAwards.length === 0 && (
+                    <p className="px-3 py-2 text-[11px] text-muted-foreground border-t border-border">
+                      No auto-badges will be awarded — set auto-rule badges in the Badges section to enable this.
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div>
                 <Label>New season name (optional)</Label>
                 <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder={`e.g. ${defaultMonthName()}`} className="mt-1.5" />
@@ -233,6 +341,7 @@ function SeasonsAdmin() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
 
         {players.length === 0 && <p className="text-xs text-muted-foreground">Tip: add players before ending a season.</p>}
       </CardContent>

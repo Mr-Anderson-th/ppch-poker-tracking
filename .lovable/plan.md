@@ -1,97 +1,58 @@
-## 1. `/players` — better player detail entry + richer detail page
+## แผนแก้ไข 6 ประเด็น
 
-**Players list (`/players`)**
-- Use `PlayerAvatar` so uploaded photos show (today the cards only render colored initials).
-- Add a clear interactive **"View performance →"** button at the bottom of each card (in addition to the whole-card link) so it reads as actionable.
-- Show season badges (🥇🥈🥉 + custom) next to each player's name.
-- Add a small leaderboard rank chip (#1, #2…) sorted by current-season points.
+### 1) แก้ลิงก์ "View details" บน /rounds
 
-**Player detail (`/players/$id`)**
-- Header gets: large avatar, badges row (with tooltip "1st place — June 2026"), current season rank, and lifetime rank.
-- New **Season selector** (All-time / current / past seasons) that filters every stat, chart, and the round history below.
-- New cards: "Best finish", "Longest survival", "Biggest win (₿)", "Current streak" (consecutive ITM).
-- New chart: **bust-time vs blind-level scatter** (when do you typically bust?).
-- New chart: **head-to-head win-rate** vs each other active player (horizontal bar).
-- Existing charts (profit curve, radar, histograms) stay but become season-aware.
+- ตรวจสอบใน `src/routes/rounds.$id.tsx`: ตอนนี้ถ้า `useRound(id)` ยังโหลดอยู่จะแสดงแค่ "Loading…" และถ้า query error (เช่น 406 / RLS) จะค้างที่หน้าว่าง — เพิ่ม error state + skeleton loader ให้เห็นชัดเจน
+- เพิ่ม `errorComponent` และ `pendingComponent` ให้ route `/rounds/$id`
+- เปลี่ยน `useRound` ให้รองรับ retry และโชว์ข้อความเมื่อไม่พบ round
+- ทดสอบจริง: เปิด preview แล้วกด View details ดูว่าหน้าโหลดข้อมูล round + results ครบ
 
-## 2. `/rounds` — working Details link + cleaner row affordance
+### 2) เพิ่มประวัติซีซั่นในหน้าผู้เล่น
 
-The detail page (`/rounds/$id`) already exists and works — the issue is the small text "Details →" doesn't feel clickable and the rest of the row isn't.
+- ใน `src/routes/players.$id.tsx` เพิ่มการ์ดใหม่ **"Season history"**
+- ดึง `useSeasonStandings()` (ทุกซีซั่น) + `useSeasons()` แล้ว filter เฉพาะของ player นี้
+- แสดงตาราง: ซีซั่น | อันดับ (พร้อม medal) | คะแนน | ชนะ | รอบที่เล่น | Net | badge ที่ได้ในซีซั่นนั้น
+- กดชื่อซีซั่นไปหน้า `/seasons/$id` ได้
 
-- Make the **entire row clickable** (navigate to `/rounds/$id` on click; keep keyboard a11y with role=button).
-- Replace the text link with a real **"View details"** button on the right (primary outline, with chevron icon).
-- Add hover state: row lifts + border highlight.
-- Add a "Season" column / chip so each round shows which season it belongs to.
+### 3) Preview ก่อนจบซีซั่น
 
-(No changes to the detail page itself in this turn unless you want them — say the word.)
+- ใน `SeasonsAdmin` ของ `src/routes/admin.tsx` เพิ่มส่วน **"Preview final standings"** ใน confirm dialog
+- คำนวณ standings ปัจจุบันจาก `activeRounds` + `activeResults` (เรียงตาม points → wins → net)
+- แสดงตาราง top 10 พร้อมไอคอน medal และระบุชัดว่า "ใครจะได้ badge อะไรบ้าง" โดยจับคู่กับ auto-rule badges (rank 1/2/3, biggest_win, perfect_attendance ฯลฯ)
+- ผู้ใช้เห็นผลลัพธ์ก่อนกด Confirm
 
-## 3. `/admin` — End-of-Season + Badges
+### 4) ตัวกรองในหน้า /rounds
 
-### End Season flow
+- เพิ่มแถบ filter ด้านบนตาราง `src/routes/rounds.tsx`:
+  - **Season** (dropdown: All / แต่ละซีซั่น)
+  - **Player** (multi-select chip — แสดงเฉพาะ round ที่ผู้เล่นนั้นลงเล่น)
+  - **Search by name** (ค้นชื่อรอบ)
+  - **Date range** (from/to)
+- เก็บ state ใน URL search params ผ่าน `validateSearch` (จำได้เวลา refresh / แชร์ลิงก์)
+- โชว์จำนวนผลลัพธ์ + ปุ่ม "Clear filters"
 
-New "Seasons" card on `/admin`:
-- Shows **current season** (name, start date, # rounds, # players with points).
-- Big **"End season & start new"** button (admin only, confirm dialog).
-- On confirm:
-  1. Snapshot the current season's leaderboard (player_id, rank, points, wins, net, rounds).
-  2. Auto-award badges to top 3 (🥇 Champion, 🥈 Runner-up, 🥉 Third place) — plus any **custom auto-rules** the admin defined (e.g. "Most rebuys", "Biggest single win").
-  3. Close the current season (`ended_at = now()`).
-  4. Open a new season (admin enters a name, e.g. "July 2026", or leave blank for auto YYYY-MM).
-- Past seasons are listed below with a "View leaderboard" link → opens read-only season page showing final standings + which badges were awarded.
+### 5) Homepage รีเซ็ตข้อมูลตามซีซั่นปัจจุบัน
 
-### User-visible past seasons
-- New public route `/seasons` listing all closed seasons.
-- New `/seasons/$id` showing the frozen leaderboard + badge winners.
-- Top-nav gets a "Seasons" tab.
+- ใน `src/routes/index.tsx` เพิ่มตัวเลือกบนสุด: **Season selector** (Current / All-time / past seasons)
+- ค่า default = ซีซั่นปัจจุบัน (active season) → leaderboard, stats, highlights, chart "Last 10 rounds" ทั้งหมด filter ตามซีซั่นที่เลือก
+- หลังจบซีซั่น: หน้า home จะโชว์ซีซั่นใหม่ (ว่าง) อัตโนมัติ — เพราะ active season เปลี่ยน
+- เพิ่มแบนเนอร์เล็กๆ บนสุด: "Showing: [Season name] · [View past seasons →]"
 
-### Badge system
-Admin section "Badges" with full CRUD:
-- Each badge has: name, emoji/icon, color, description, type = `manual` or `auto`, and (for auto) a `rule` enum.
-- Badges show next to player names everywhere (list, detail, round results).
-- Admin can also **manually grant/revoke** any badge to any player from the player detail page.
+### 6) แก้หน้า /seasons/$id ให้เห็นข้อมูลซีซั่นที่เลือก
 
-**Starter badges I'll seed (admin can edit/delete):**
+- ปัญหาปัจจุบัน: ตาราง "Final standings" จะว่างถ้า `season_standings` ไม่ได้ snapshot ไว้ (เช่นซีซั่นที่ยังไม่ถูกปิดผ่าน endSeason หรือซีซั่น default "Season 1" ที่ backfill มา)
+- แก้: ถ้า `standings.length === 0` → fallback คำนวณ standings สดจาก `rounds` + `results` ที่ `season_id === id` (เรียงเหมือน leaderboard บน home)
+- เพิ่มส่วนแสดงรอบทั้งหมดของซีซั่น: ตาราง mini "Rounds in this season" (วันที่, ชื่อ, ผู้ชนะ, pot) → กดเข้า /rounds/$id ได้
+- ถ้าเป็นซีซั่นที่ active แสดง badge "Active" บน header แทนวันที่จบ  
+  
+7) เก็บข้อมูลที่มีอยู่ตอนนี้ให้เป็น Past seasons ไปเลย แล้วเริ่มการนับคะแนนใหม่
 
-| Badge | Icon | Rule | Description |
-|---|---|---|---|
-| Season Champion | 🥇 | auto: season rank 1 | Won a season |
-| Runner-up | 🥈 | auto: season rank 2 | Finished 2nd in a season |
-| Bronze | 🥉 | auto: season rank 3 | Finished 3rd in a season |
-| First Blood | 🩸 | auto: first ever win | First tournament win |
-| Iron Man | 🛡️ | auto: played every round in a season | Perfect attendance |
-| High Roller | 💎 | auto: biggest single-round win in a season | Biggest pot in a season |
-| Comeback Kid | 🔥 | auto: won after ≥2 rebuys | Won despite ≥2 rebuys |
-| Bubble Boy | 🫧 | auto: most "just out of money" finishes in a season | Most bubble finishes |
-| Shark | 🦈 | manual | Admin-granted |
-| Fish | 🐟 | manual | Admin-granted (fun tag) |
+## เทคนิค / ไฟล์ที่แก้
 
-## Technical section
-
-### DB migration
-- `seasons` table: `id`, `name`, `started_at`, `ended_at` (nullable = active), `created_at`. GRANTs + public SELECT policy.
-- `rounds.season_id uuid references seasons(id)` — backfill existing rounds into a single "Season 1" row.
-- `badges` table: `id`, `name`, `icon`, `color`, `description`, `kind` ('manual'|'auto'), `auto_rule` (enum nullable), `created_at`. Admin-only writes via server fn.
-- `player_badges` table: `id`, `player_id`, `badge_id`, `season_id` (nullable for lifetime badges), `awarded_at`, `note`. Unique (player_id, badge_id, season_id).
-- `season_standings` snapshot table: `season_id`, `player_id`, `rank`, `points`, `wins`, `rounds`, `net`. Frozen at season close.
-- All public SELECT; writes via `createServerFn` with admin-password check (same pattern as existing `updateRound`).
-
-### Server functions (add to `src/lib/api/admin.functions.ts`)
-- `endSeason({ password, newSeasonName? })` — snapshots, awards auto-badges, closes + opens season in one transaction.
-- `createBadge / updateBadge / deleteBadge`.
-- `grantBadge / revokeBadge` (manual).
-- `updatePlayer` extended to optionally pin/feature badges.
-
-### Queries (`src/lib/queries.ts`)
-- `useSeasons()`, `useSeason(id)`, `useSeasonStandings(id)`, `useBadges()`, `usePlayerBadges()`.
-- Add `season_id` filter to existing `useResults()` / `useRounds()` for the season selector.
-
-### New files
-- `src/routes/seasons.tsx` + `src/routes/seasons.$id.tsx`.
-- `src/components/BadgeChip.tsx` (icon + tooltip).
-- `src/components/SeasonSelect.tsx`.
-
-### Files edited
-- `src/routes/players.tsx`, `src/routes/players.$id.tsx`, `src/routes/rounds.tsx`, `src/routes/admin.tsx`, `src/components/AppShell.tsx` (add Seasons nav), `src/lib/queries.ts`, `src/lib/api/admin.functions.ts`.
-
-### About publishing
-ใช่ — publish เว็บไปแล้วก็ยังให้ฉันช่วยปรับและแก้ได้ตามปกติ ทุกครั้งที่แก้ใน Lovable แล้วกด Publish ใหม่ เว็บ production จะอัปเดตตาม
+- `src/routes/rounds.$id.tsx` — error/pending components
+- `src/routes/players.$id.tsx` — เพิ่ม Season history card
+- `src/routes/admin.tsx` — preview standings + projected badges ใน end-season dialog
+- `src/routes/rounds.tsx` — filter bar + `validateSearch` (season/player/search/date)
+- `src/routes/index.tsx` — season selector + filter ทุกการคำนวณตาม `season_id`
+- `src/routes/seasons.$id.tsx` — fallback compute standings + รายชื่อ rounds
+- ไม่ต้องแก้ DB / migrations รอบนี้ — ใช้ข้อมูลที่มีอยู่แล้ว
