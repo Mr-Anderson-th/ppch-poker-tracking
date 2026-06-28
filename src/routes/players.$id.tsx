@@ -175,6 +175,40 @@ function PlayerDetail() {
     ];
   }, [pct, totals, avgSurvivalSec, groupComp]);
 
+  // Season history for this player (snapshot first, fallback to live compute per season)
+  const seasonHistory = useMemo(() => {
+    return seasons.map((s) => {
+      const snap = allStandings.find((st) => st.season_id === s.id && st.player_id === id);
+      let row: { rank: number | null; points: number; wins: number; rounds_played: number; net: number };
+      if (snap) {
+        row = { rank: snap.rank, points: snap.points, wins: snap.wins, rounds_played: snap.rounds_played, net: Number(snap.net) };
+      } else {
+        // Compute live for this season's rounds
+        const roundIds = new Set(rounds.filter((r) => r.season_id === s.id).map((r) => r.id));
+        const allInSeason = results.filter((r) => roundIds.has(r.round_id));
+        const perPlayer = new Map<string, { player_id: string; points: number; wins: number; net: number; rounds_played: number }>();
+        for (const r of allInSeason) {
+          let a = perPlayer.get(r.player_id);
+          if (!a) { a = { player_id: r.player_id, points: 0, wins: 0, net: 0, rounds_played: 0 }; perPlayer.set(r.player_id, a); }
+          a.points += r.points_awarded;
+          a.rounds_played += 1;
+          a.net += Number(r.net_amount);
+          if (r.finish_position === 1) a.wins += 1;
+        }
+        const sorted = Array.from(perPlayer.values()).sort((a, b) => b.points - a.points || b.wins - a.wins || b.net - a.net);
+        const me = perPlayer.get(id);
+        const rank = me ? sorted.findIndex((x) => x.player_id === id) + 1 : null;
+        row = { rank, points: me?.points ?? 0, wins: me?.wins ?? 0, rounds_played: me?.rounds_played ?? 0, net: me?.net ?? 0 };
+      }
+      const seasonBadges = playerBadges
+        .filter((pb) => pb.player_id === id && pb.season_id === s.id)
+        .map((pb) => badgeById.get(pb.badge_id))
+        .filter((b): b is NonNullable<typeof b> => !!b);
+      return { season: s, ...row, badges: seasonBadges };
+    }).filter((x) => x.rounds_played > 0 || x.rank != null);
+  }, [seasons, allStandings, rounds, results, id, playerBadges, badgeById]);
+
+
   if (!player) {
     return <div className="p-8"><Link to="/players" className="text-primary">← Back</Link><p className="mt-4">Player not found.</p></div>;
   }
