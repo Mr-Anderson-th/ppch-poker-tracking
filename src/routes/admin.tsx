@@ -270,15 +270,66 @@ function SeasonsAdmin() {
         )}
 
         <Dialog open={confirmOpen} onOpenChange={(o) => !o && setConfirmOpen(false)}>
-          <DialogContent>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>End "{active?.name}"?</DialogTitle></DialogHeader>
-            <div className="space-y-3 text-sm">
+            <div className="space-y-4 text-sm">
               <p>This will:</p>
               <ul className="list-disc list-inside text-muted-foreground space-y-1">
                 <li>Freeze a final leaderboard for <strong>{active?.name}</strong> ({playerCount} players, {activeRounds.length} rounds).</li>
                 <li>Auto-award badges (Champion 🥇, Runner-up 🥈, Bronze 🥉, plus any auto-rule badges).</li>
                 <li>Start a fresh season with empty standings (existing rounds stay attached to the old season).</li>
               </ul>
+
+              {previewStandings.length > 0 && (
+                <div className="border border-border rounded-lg overflow-hidden">
+                  <div className="px-3 py-2 bg-secondary/40 text-xs font-semibold uppercase tracking-wider">Preview · Final standings</div>
+                  <div className="max-h-[260px] overflow-y-auto">
+                    <table className="w-full text-xs">
+                      <thead className="text-muted-foreground bg-secondary/20">
+                        <tr>
+                          <th className="text-left px-3 py-1.5">#</th>
+                          <th className="text-left px-2 py-1.5">Player</th>
+                          <th className="text-right px-2 py-1.5">Pts</th>
+                          <th className="text-right px-2 py-1.5">W</th>
+                          <th className="text-right px-2 py-1.5">Net</th>
+                          <th className="text-left px-3 py-1.5">Will earn</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {previewStandings.slice(0, 10).map((s) => {
+                          const p = playerById.get(s.player_id);
+                          const awards = awardsByPlayer.get(s.player_id) ?? [];
+                          const medal = s.rank === 1 ? "bg-warning/20 text-warning" : s.rank === 2 ? "bg-info/20 text-info" : s.rank === 3 ? "bg-accent text-accent-foreground" : "bg-secondary text-muted-foreground";
+                          return (
+                            <tr key={s.player_id} className="border-t border-border">
+                              <td className="px-3 py-1.5"><span className={`inline-grid place-items-center size-5 rounded text-[10px] font-bold ${medal}`}>{s.rank}</span></td>
+                              <td className="px-2 py-1.5 font-medium">{p?.name ?? "—"}</td>
+                              <td className="px-2 py-1.5 text-right font-semibold tabular-nums">{s.points}</td>
+                              <td className="px-2 py-1.5 text-right tabular-nums">{s.wins}</td>
+                              <td className={`px-2 py-1.5 text-right font-mono ${s.net >= 0 ? "text-success" : "text-destructive"}`}>{s.net >= 0 ? "+" : ""}{s.net.toLocaleString()}</td>
+                              <td className="px-3 py-1.5">
+                                <div className="flex flex-wrap gap-1">
+                                  {awards.map((a, i) => (
+                                    <span key={i} title={a.reason} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px]">
+                                      <span>{a.badge.icon}</span><span>{a.badge.name}</span>
+                                    </span>
+                                  ))}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  {projectedAwards.length === 0 && (
+                    <p className="px-3 py-2 text-[11px] text-muted-foreground border-t border-border">
+                      No auto-badges will be awarded — set auto-rule badges in the Badges section to enable this.
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div>
                 <Label>New season name (optional)</Label>
                 <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder={`e.g. ${defaultMonthName()}`} className="mt-1.5" />
@@ -290,6 +341,7 @@ function SeasonsAdmin() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
 
         {players.length === 0 && <p className="text-xs text-muted-foreground">Tip: add players before ending a season.</p>}
       </CardContent>
