@@ -28,10 +28,27 @@ function fmtMoney(n: number, c = "฿") {
 
 function Dashboard() {
   const { data: players = [] } = usePlayers();
-  const { data: rounds = [] } = useRounds();
-  const { data: results = [] } = useResults();
+  const { data: allRounds = [] } = useRounds();
+  const { data: allResults = [] } = useResults();
   const { data: settings } = useSettings();
+  const { data: seasons = [] } = useSeasons();
   const currency = settings?.currency ?? "฿";
+
+  const activeSeason = useMemo(() => seasons.find((s) => !s.ended_at), [seasons]);
+  // Default to active season; "__all" = lifetime
+  const [seasonFilter, setSeasonFilter] = useState<string>("__active");
+  const effectiveSeasonId = seasonFilter === "__active" ? activeSeason?.id ?? null : seasonFilter === "__all" ? null : seasonFilter;
+  const selectedSeason = effectiveSeasonId ? seasons.find((s) => s.id === effectiveSeasonId) : null;
+
+  const rounds = useMemo(
+    () => (effectiveSeasonId ? allRounds.filter((r) => r.season_id === effectiveSeasonId) : allRounds),
+    [allRounds, effectiveSeasonId],
+  );
+  const roundIdSet = useMemo(() => new Set(rounds.map((r) => r.id)), [rounds]);
+  const results = useMemo(
+    () => (effectiveSeasonId ? allResults.filter((r) => roundIdSet.has(r.round_id)) : allResults),
+    [allResults, roundIdSet, effectiveSeasonId],
+  );
 
   const playerById = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
 
