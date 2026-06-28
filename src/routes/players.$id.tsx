@@ -30,6 +30,7 @@ function PlayerDetail() {
   const { data: badges = [] } = useBadges();
   const { data: playerBadges = [] } = usePlayerBadges();
   const { data: seasons = [] } = useSeasons();
+  const { data: allStandings = [] } = useSeasonStandings();
   const currency = settings?.currency ?? "฿";
   const unlocked = useAdminUnlocked();
   const [grantOpen, setGrantOpen] = useState(false);
