@@ -194,9 +194,9 @@ function RoundsPage() {
                           })}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-4 py-3 text-right">
                         <Button asChild variant="outline" size="sm" className="gap-1 hover:bg-primary hover:text-primary-foreground hover:border-primary">
-                          <Link to="/rounds/$id" params={{ id: r.id }}>
+                          <Link to="/rounds/$id" params={{ id: r.id }} preload="intent" onClick={(e) => e.stopPropagation()}>
                             View details <ChevronRight className="size-3.5" />
                           </Link>
                         </Button>
