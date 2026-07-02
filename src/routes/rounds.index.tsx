@@ -37,7 +37,7 @@ function RoundsPage() {
   const currency = settings?.currency ?? "฿";
   const playerById = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
   const seasonById = useMemo(() => new Map(seasons.map((s) => [s.id, s])), [seasons]);
-  const navigate = useNavigate({ from: "/rounds" });
+  const navigate = useNavigate({ from: "/rounds/" });
   const search = Route.useSearch();
 
   const setSearch = (patch: Partial<RoundsSearch>) =>
