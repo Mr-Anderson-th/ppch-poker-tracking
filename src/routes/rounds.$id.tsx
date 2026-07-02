@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate, useParams } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -127,6 +127,7 @@ function RoundDetail() {
       toast.success("Round deleted");
       queryClient.invalidateQueries({ queryKey: ["rounds"] });
       queryClient.invalidateQueries({ queryKey: ["results"] });
+      queryClient.invalidateQueries({ queryKey: ["season_standings"] });
       navigate({ to: "/rounds" });
     } catch (e) {
       toast.error((e as Error).message);
