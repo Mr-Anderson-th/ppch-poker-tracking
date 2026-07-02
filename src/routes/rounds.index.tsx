@@ -160,20 +160,21 @@ function RoundsPage() {
                     .filter((x) => x.round_id === r.id && x.finish_position <= 3)
                     .sort((a, b) => a.finish_position - b.finish_position);
                   const season = r.season_id ? seasonById.get(r.season_id) : undefined;
+                  const goDetail = () => navigate({ to: "/rounds/$id", params: { id: r.id } });
                   return (
                     <tr
                       key={r.id}
-                      className="border-b border-border last:border-0 hover:bg-secondary/60 transition-colors"
+                      onClick={goDetail}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); goDetail(); } }}
+                      tabIndex={0}
+                      role="button"
+                      className="border-b border-border last:border-0 cursor-pointer hover:bg-secondary/60 focus:outline-none focus:bg-secondary/60 transition-colors"
                     >
                       <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                        <Link to="/rounds/$id" params={{ id: r.id }} preload="intent" className="block -m-3 px-3 py-3">
-                          {format(new Date(r.played_at), "MMM d, yyyy")}
-                        </Link>
+                        {format(new Date(r.played_at), "MMM d, yyyy")}
                       </td>
                       <td className="px-2 py-3 font-medium">
-                        <Link to="/rounds/$id" params={{ id: r.id }} preload="intent" className="block -m-3 px-3 py-3 hover:text-primary">
-                          {r.name}
-                        </Link>
+                        {r.name}
                       </td>
                       <td className="px-2 py-3 text-xs">
                         {season ? (
@@ -199,7 +200,7 @@ function RoundsPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <Button asChild variant="outline" size="sm" className="gap-1 hover:bg-primary hover:text-primary-foreground hover:border-primary">
-                          <Link to="/rounds/$id" params={{ id: r.id }} preload="intent">
+                          <Link to="/rounds/$id" params={{ id: r.id }} preload="intent" onClick={(e) => e.stopPropagation()}>
                             View details <ChevronRight className="size-3.5" />
                           </Link>
                         </Button>
