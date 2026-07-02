@@ -10,10 +10,12 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SeasonsRouteImport } from './routes/seasons'
+import { Route as RoundsRouteImport } from './routes/rounds'
 import { Route as PlayersRouteImport } from './routes/players'
 import { Route as ClockRouteImport } from './routes/clock'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as RoundsIndexRouteImport } from './routes/rounds.index'
 import { Route as SeasonsIdRouteImport } from './routes/seasons.$id'
 import { Route as RoundsIdRouteImport } from './routes/rounds.$id'
 import { Route as PlayersIdRouteImport } from './routes/players.$id'
@@ -21,6 +23,11 @@ import { Route as PlayersIdRouteImport } from './routes/players.$id'
 const SeasonsRoute = SeasonsRouteImport.update({
   id: '/seasons',
   path: '/seasons',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoundsRoute = RoundsRouteImport.update({
+  id: '/rounds',
+  path: '/rounds',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PlayersRoute = PlayersRouteImport.update({
@@ -43,15 +50,20 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RoundsIndexRoute = RoundsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => RoundsRoute,
+} as any)
 const SeasonsIdRoute = SeasonsIdRouteImport.update({
   id: '/$id',
   path: '/$id',
   getParentRoute: () => SeasonsRoute,
 } as any)
 const RoundsIdRoute = RoundsIdRouteImport.update({
-  id: '/rounds/$id',
-  path: '/rounds/$id',
-  getParentRoute: () => rootRouteImport,
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => RoundsRoute,
 } as any)
 const PlayersIdRoute = PlayersIdRouteImport.update({
   id: '/$id',
@@ -64,10 +76,12 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/clock': typeof ClockRoute
   '/players': typeof PlayersRouteWithChildren
+  '/rounds': typeof RoundsRouteWithChildren
   '/seasons': typeof SeasonsRouteWithChildren
   '/players/$id': typeof PlayersIdRoute
   '/rounds/$id': typeof RoundsIdRoute
   '/seasons/$id': typeof SeasonsIdRoute
+  '/rounds/': typeof RoundsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -78,6 +92,7 @@ export interface FileRoutesByTo {
   '/players/$id': typeof PlayersIdRoute
   '/rounds/$id': typeof RoundsIdRoute
   '/seasons/$id': typeof SeasonsIdRoute
+  '/rounds': typeof RoundsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -85,10 +100,12 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/clock': typeof ClockRoute
   '/players': typeof PlayersRouteWithChildren
+  '/rounds': typeof RoundsRouteWithChildren
   '/seasons': typeof SeasonsRouteWithChildren
   '/players/$id': typeof PlayersIdRoute
   '/rounds/$id': typeof RoundsIdRoute
   '/seasons/$id': typeof SeasonsIdRoute
+  '/rounds/': typeof RoundsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -97,10 +114,12 @@ export interface FileRouteTypes {
     | '/admin'
     | '/clock'
     | '/players'
+    | '/rounds'
     | '/seasons'
     | '/players/$id'
     | '/rounds/$id'
     | '/seasons/$id'
+    | '/rounds/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -111,16 +130,19 @@ export interface FileRouteTypes {
     | '/players/$id'
     | '/rounds/$id'
     | '/seasons/$id'
+    | '/rounds'
   id:
     | '__root__'
     | '/'
     | '/admin'
     | '/clock'
     | '/players'
+    | '/rounds'
     | '/seasons'
     | '/players/$id'
     | '/rounds/$id'
     | '/seasons/$id'
+    | '/rounds/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -128,8 +150,8 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   ClockRoute: typeof ClockRoute
   PlayersRoute: typeof PlayersRouteWithChildren
+  RoundsRoute: typeof RoundsRouteWithChildren
   SeasonsRoute: typeof SeasonsRouteWithChildren
-  RoundsIdRoute: typeof RoundsIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -139,6 +161,13 @@ declare module '@tanstack/react-router' {
       path: '/seasons'
       fullPath: '/seasons'
       preLoaderRoute: typeof SeasonsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rounds': {
+      id: '/rounds'
+      path: '/rounds'
+      fullPath: '/rounds'
+      preLoaderRoute: typeof RoundsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/players': {
@@ -169,6 +198,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/rounds/': {
+      id: '/rounds/'
+      path: '/'
+      fullPath: '/rounds/'
+      preLoaderRoute: typeof RoundsIndexRouteImport
+      parentRoute: typeof RoundsRoute
+    }
     '/seasons/$id': {
       id: '/seasons/$id'
       path: '/$id'
@@ -178,10 +214,10 @@ declare module '@tanstack/react-router' {
     }
     '/rounds/$id': {
       id: '/rounds/$id'
-      path: '/rounds/$id'
+      path: '/$id'
       fullPath: '/rounds/$id'
       preLoaderRoute: typeof RoundsIdRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof RoundsRoute
     }
     '/players/$id': {
       id: '/players/$id'
@@ -204,6 +240,19 @@ const PlayersRouteChildren: PlayersRouteChildren = {
 const PlayersRouteWithChildren =
   PlayersRoute._addFileChildren(PlayersRouteChildren)
 
+interface RoundsRouteChildren {
+  RoundsIdRoute: typeof RoundsIdRoute
+  RoundsIndexRoute: typeof RoundsIndexRoute
+}
+
+const RoundsRouteChildren: RoundsRouteChildren = {
+  RoundsIdRoute: RoundsIdRoute,
+  RoundsIndexRoute: RoundsIndexRoute,
+}
+
+const RoundsRouteWithChildren =
+  RoundsRoute._addFileChildren(RoundsRouteChildren)
+
 interface SeasonsRouteChildren {
   SeasonsIdRoute: typeof SeasonsIdRoute
 }
@@ -220,9 +269,19 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   ClockRoute: ClockRoute,
   PlayersRoute: PlayersRouteWithChildren,
+  RoundsRoute: RoundsRouteWithChildren,
   SeasonsRoute: SeasonsRouteWithChildren,
-  RoundsIdRoute: RoundsIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
