@@ -1,58 +1,67 @@
-## แผนแก้ไข 6 ประเด็น
+## Plan: แก้ `/rounds` และทำหน้า Round Details ให้ครบ
 
-### 1) แก้ลิงก์ "View details" บน /rounds
+### เป้าหมาย
+ทำให้ปุ่ม/แถว `View details` ใน `/rounds` เข้า `/rounds/$id` ได้จริง และหน้า detail แสดงข้อมูลรอบนั้นครบตามที่ต้องการ พร้อมปุ่มแก้ไข/ลบสำหรับ admin
 
-- ตรวจสอบใน `src/routes/rounds.$id.tsx`: ตอนนี้ถ้า `useRound(id)` ยังโหลดอยู่จะแสดงแค่ "Loading…" และถ้า query error (เช่น 406 / RLS) จะค้างที่หน้าว่าง — เพิ่ม error state + skeleton loader ให้เห็นชัดเจน
-- เพิ่ม `errorComponent` และ `pendingComponent` ให้ route `/rounds/$id`
-- เปลี่ยน `useRound` ให้รองรับ retry และโชว์ข้อความเมื่อไม่พบ round
-- ทดสอบจริง: เปิด preview แล้วกด View details ดูว่าหน้าโหลดข้อมูล round + results ครบ
+### สิ่งที่จะทำ
+1. **แก้ปัญหา View details กดแล้วไม่แสดงข้อมูล**
+   - ตรวจ flow การ navigate จาก `/rounds` ไป `/rounds/$id`
+   - ปรับปุ่มให้เป็นลิงก์ชัดเจนและไม่ชนกับ click handler ของแถว
+   - เพิ่ม error/loading/empty state ที่อ่านง่าย ถ้ารอบไม่พบหรือข้อมูลยังโหลดไม่เสร็จ
 
-### 2) เพิ่มประวัติซีซั่นในหน้าผู้เล่น
+2. **ออกแบบหน้า `/rounds/$id` ใหม่ให้ดูเป็น Round dashboard**
+   - Header แสดงชื่อรอบ, วันที่, ระยะเวลาที่เล่น, จำนวนผู้เล่น, total pot, total re-buy
+   - Summary ด้านล่างตามที่ขอ:
+     - total pot
+     - total re-buy
+     - avg re-buy ต่อผู้เล่น
+     - ระยะเวลาที่เล่น
+     - % เทียบค่าเฉลี่ยของ season สำหรับ total re-buy
+     - % เทียบค่าเฉลี่ยของ season สำหรับ avg re-buy
+   - ถ้ายังไม่มีข้อมูล จะขึ้น `—` แทน ไม่ทำให้หน้าพัง
 
-- ใน `src/routes/players.$id.tsx` เพิ่มการ์ดใหม่ **"Season history"**
-- ดึง `useSeasonStandings()` (ทุกซีซั่น) + `useSeasons()` แล้ว filter เฉพาะของ player นี้
-- แสดงตาราง: ซีซั่น | อันดับ (พร้อม medal) | คะแนน | ชนะ | รอบที่เล่น | Net | badge ที่ได้ในซีซั่นนั้น
-- กดชื่อซีซั่นไปหน้า `/seasons/$id` ได้
+3. **ตารางผลผู้เล่นในรอบนั้น**
+   - แสดงคอลัมน์:
+     - อันดับ
+     - ชื่อผู้เล่น
+     - คะแนนที่ได้
+     - เงินที่ได้ / payout
+     - sb-bb ตอนตกรอบ
+     - เวลาออก
+     - re-buy
+     - net
+   - ข้อมูล bust time, sb/bb, rebuy_times จะดึงจากข้อมูลที่ clock บันทึกไว้
 
-### 3) Preview ก่อนจบซีซั่น
+4. **กราฟ timeline**
+   - แสดงจุดเวลาที่ผู้เล่นตกรอบ
+   - แสดงจุด/สัญลักษณ์สำหรับ re-buy
+   - Tooltip บอกชื่อผู้เล่น, เวลา, อันดับ, level/sb-bb ถ้ามีข้อมูล
 
-- ใน `SeasonsAdmin` ของ `src/routes/admin.tsx` เพิ่มส่วน **"Preview final standings"** ใน confirm dialog
-- คำนวณ standings ปัจจุบันจาก `activeRounds` + `activeResults` (เรียงตาม points → wins → net)
-- แสดงตาราง top 10 พร้อมไอคอน medal และระบุชัดว่า "ใครจะได้ badge อะไรบ้าง" โดยจับคู่กับ auto-rule badges (rank 1/2/3, biggest_win, perfect_attendance ฯลฯ)
-- ผู้ใช้เห็นผลลัพธ์ก่อนกด Confirm
+5. **เพิ่ม Admin controls**
+   - ปุ่ม `Edit round` สำหรับ admin
+   - ปุ่ม `Delete round` สำหรับ admin
+   - Dialog แก้ไขข้อมูลทั้งหมดที่มีอยู่ได้มากขึ้น:
+     - round name/date
+     - buy-in/re-buy amount
+     - payout structure
+     - blind settings: starting SB/BB, level minutes, multiplier
+     - duration
+     - notes
+     - ผลผู้เล่น: position, points, payout, rebuys, bust sb/bb, bust level, bust time, rebuy times
+   - หลัง save/delete จะ invalidate ข้อมูลที่เกี่ยวข้องให้หน้า `/homepage`, `/rounds`, `/players`, `/seasons` อัปเดตตาม
 
-### 4) ตัวกรองในหน้า /rounds
+6. **ปรับ server function `updateRound` ให้รองรับการแก้ไขครบ**
+   - เพิ่ม validation สำหรับ field ที่ยังแก้ไม่ได้ตอนนี้ เช่น payout_structure, level_minutes, starting_sb, starting_bb, blind_multiplier, duration_seconds, rebuy_times
+   - คำนวณ total players, total rebuys, total pot, net amount ใหม่หลังแก้ไข
+   - ลบ round จะยังใช้ฟังก์ชันเดิม แต่จะตรวจให้ invalidate ครบหลังลบ
 
-- เพิ่มแถบ filter ด้านบนตาราง `src/routes/rounds.tsx`:
-  - **Season** (dropdown: All / แต่ละซีซั่น)
-  - **Player** (multi-select chip — แสดงเฉพาะ round ที่ผู้เล่นนั้นลงเล่น)
-  - **Search by name** (ค้นชื่อรอบ)
-  - **Date range** (from/to)
-- เก็บ state ใน URL search params ผ่าน `validateSearch` (จำได้เวลา refresh / แชร์ลิงก์)
-- โชว์จำนวนผลลัพธ์ + ปุ่ม "Clear filters"
+### Technical notes
+- ไม่ต้องเพิ่มตารางใหม่ ใช้ข้อมูลเดิมจาก `rounds`, `round_results`, `players`, `seasons`
+- ใช้ค่า season average คำนวณใน frontend จาก `useRounds()` โดย filter `season_id` เดียวกัน
+- ถ้ารอบไม่มี `season_id` จะเทียบกับค่าเฉลี่ยจากทุก round แทน หรือแสดง `—` เมื่อไม่มีข้อมูลพอ
+- จะไม่แก้ auto-generated files เช่น `routeTree.gen.ts` หรือไฟล์ integration ที่ระบบสร้างให้
 
-### 5) Homepage รีเซ็ตข้อมูลตามซีซั่นปัจจุบัน
-
-- ใน `src/routes/index.tsx` เพิ่มตัวเลือกบนสุด: **Season selector** (Current / All-time / past seasons)
-- ค่า default = ซีซั่นปัจจุบัน (active season) → leaderboard, stats, highlights, chart "Last 10 rounds" ทั้งหมด filter ตามซีซั่นที่เลือก
-- หลังจบซีซั่น: หน้า home จะโชว์ซีซั่นใหม่ (ว่าง) อัตโนมัติ — เพราะ active season เปลี่ยน
-- เพิ่มแบนเนอร์เล็กๆ บนสุด: "Showing: [Season name] · [View past seasons →]"
-
-### 6) แก้หน้า /seasons/$id ให้เห็นข้อมูลซีซั่นที่เลือก
-
-- ปัญหาปัจจุบัน: ตาราง "Final standings" จะว่างถ้า `season_standings` ไม่ได้ snapshot ไว้ (เช่นซีซั่นที่ยังไม่ถูกปิดผ่าน endSeason หรือซีซั่น default "Season 1" ที่ backfill มา)
-- แก้: ถ้า `standings.length === 0` → fallback คำนวณ standings สดจาก `rounds` + `results` ที่ `season_id === id` (เรียงเหมือน leaderboard บน home)
-- เพิ่มส่วนแสดงรอบทั้งหมดของซีซั่น: ตาราง mini "Rounds in this season" (วันที่, ชื่อ, ผู้ชนะ, pot) → กดเข้า /rounds/$id ได้
-- ถ้าเป็นซีซั่นที่ active แสดง badge "Active" บน header แทนวันที่จบ  
-  
-7) เก็บข้อมูลที่มีอยู่ตอนนี้ให้เป็น Past seasons ไปเลย แล้วเริ่มการนับคะแนนใหม่
-
-## เทคนิค / ไฟล์ที่แก้
-
-- `src/routes/rounds.$id.tsx` — error/pending components
-- `src/routes/players.$id.tsx` — เพิ่ม Season history card
-- `src/routes/admin.tsx` — preview standings + projected badges ใน end-season dialog
-- `src/routes/rounds.tsx` — filter bar + `validateSearch` (season/player/search/date)
-- `src/routes/index.tsx` — season selector + filter ทุกการคำนวณตาม `season_id`
-- `src/routes/seasons.$id.tsx` — fallback compute standings + รายชื่อ rounds
-- ไม่ต้องแก้ DB / migrations รอบนี้ — ใช้ข้อมูลที่มีอยู่แล้ว
+### ผลลัพธ์หลังทำเสร็จ
+- กด `View details` หรือคลิกแถวใน `/rounds` แล้วเห็นหน้า detail ได้จริง
+- หน้า detail มีตาราง, summary, timeline graph ครบ
+- Admin แก้ไข/ลบ round ได้จากหน้า detail โดยตรง

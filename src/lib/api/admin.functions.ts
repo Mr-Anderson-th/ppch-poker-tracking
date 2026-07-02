@@ -236,6 +236,7 @@ const editResultSchema = z.object({
   bust_bb: z.number().int().nullable(),
   bust_level: z.number().int().nullable(),
   bust_time_seconds: z.number().int().min(0).nullable(),
+  rebuy_times: z.array(z.number().int().min(0)).default([]),
   payout: z.number().min(0),
   points_awarded: z.number().int().min(0),
 });
@@ -244,7 +245,19 @@ export const updateRound = createServerFn({ method: "POST" })
   .inputValidator((d: {
     password: string;
     id: string;
-    round: { name?: string; played_at?: string; buy_in?: number; rebuy_amount?: number; notes?: string | null };
+    round: {
+      name?: string;
+      played_at?: string;
+      buy_in?: number;
+      rebuy_amount?: number;
+      payout_structure?: number[];
+      level_minutes?: number;
+      blind_multiplier?: number;
+      starting_sb?: number;
+      starting_bb?: number;
+      duration_seconds?: number;
+      notes?: string | null;
+    };
     results: z.infer<typeof editResultSchema>[];
   }) =>
     z.object({
@@ -255,6 +268,12 @@ export const updateRound = createServerFn({ method: "POST" })
         played_at: z.string().optional(),
         buy_in: z.number().min(0).optional(),
         rebuy_amount: z.number().min(0).optional(),
+        payout_structure: z.array(z.number().min(0).max(100)).min(1).max(20).optional(),
+        level_minutes: z.number().int().min(1).max(120).optional(),
+        blind_multiplier: z.number().min(0.1).max(10).optional(),
+        starting_sb: z.number().int().min(1).optional(),
+        starting_bb: z.number().int().min(1).optional(),
+        duration_seconds: z.number().int().min(0).optional(),
         notes: z.string().max(2000).nullable().optional(),
       }),
       results: z.array(editResultSchema).min(1).max(100),
@@ -272,9 +291,12 @@ export const updateRound = createServerFn({ method: "POST" })
     const totalRebuys = data.results.reduce((s, r) => s + r.rebuys, 0);
     const totalPlayers = data.results.length;
     const totalPot = totalPlayers * buyIn + totalRebuys * rebuyAmt;
+    const roundPatch = Object.fromEntries(
+      Object.entries(data.round).filter(([, value]) => value !== undefined),
+    );
 
     const { error: e1 } = await sb.from("rounds").update({
-      ...data.round,
+      ...roundPatch,
       total_players: totalPlayers,
       total_rebuys: totalRebuys,
       total_pot: totalPot,
@@ -290,6 +312,7 @@ export const updateRound = createServerFn({ method: "POST" })
         bust_bb: r.bust_bb,
         bust_level: r.bust_level,
         bust_time_seconds: r.bust_time_seconds,
+        rebuy_times: r.rebuy_times,
         payout: r.payout,
         net_amount: r.payout - cost,
         points_awarded: r.points_awarded,
