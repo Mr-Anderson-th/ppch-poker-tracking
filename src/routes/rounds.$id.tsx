@@ -127,6 +127,8 @@ function RoundDetail() {
       toast.success("Round deleted");
       queryClient.invalidateQueries({ queryKey: ["rounds"] });
       queryClient.invalidateQueries({ queryKey: ["results"] });
+      queryClient.invalidateQueries({ queryKey: ["round", round.id] });
+      queryClient.invalidateQueries({ queryKey: ["round-results", round.id] });
       queryClient.invalidateQueries({ queryKey: ["season_standings"] });
       navigate({ to: "/rounds" });
     } catch (e) {
