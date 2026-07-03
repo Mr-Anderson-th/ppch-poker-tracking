@@ -359,18 +359,25 @@ function percentDelta(value: number, avg: number | null) {
   return ((value - avg) / avg) * 100;
 }
 
-function SummaryMetric({ label, value, delta, compareLabel }: { label: string; value: string | number; delta?: number | null; compareLabel?: string }) {
+function SummaryMetric({ label, value, delta, compareLabel, betterWhen = "lower" }: { label: string; value: string | number; delta?: number | null; compareLabel?: string; betterWhen?: "lower" | "higher" | "neutral" }) {
   const hasDelta = delta != null && Number.isFinite(delta);
   const positive = hasDelta && delta > 0;
   const negative = hasDelta && delta < 0;
   const Icon = positive ? TrendingUp : negative ? TrendingDown : Minus;
+  const good = betterWhen === "higher" ? positive : betterWhen === "lower" ? negative : false;
+  const bad = betterWhen === "higher" ? negative : betterWhen === "lower" ? positive : false;
+  const tone = good
+    ? "bg-success/10 text-success"
+    : bad
+    ? "bg-destructive/10 text-destructive"
+    : "bg-secondary text-muted-foreground";
   return (
     <Card>
       <CardContent className="p-4">
         <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
         <div className="text-2xl font-bold tabular-nums mt-1">{value}</div>
         {compareLabel && (
-          <div className={`mt-2 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold ${positive ? "bg-destructive/10 text-destructive" : negative ? "bg-success/10 text-success" : "bg-secondary text-muted-foreground"}`}>
+          <div className={`mt-2 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold ${tone}`}>
             <Icon className="size-3" />
             {hasDelta ? `${positive ? "+" : ""}${delta.toFixed(1)}% ${compareLabel}` : `— ${compareLabel}`}
           </div>
