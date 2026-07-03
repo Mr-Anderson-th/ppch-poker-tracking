@@ -186,10 +186,10 @@ function RoundDetail() {
       </Card>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <SummaryMetric label="Total pot" value={`${currency}${Number(round.total_pot).toLocaleString()}`} />
-        <SummaryMetric label="Total re-buy" value={round.total_rebuys.toLocaleString()} delta={totalRebuyDelta} compareLabel="vs season avg" />
-        <SummaryMetric label="Avg re-buy / player" value={avgRebuy.toFixed(2)} delta={avgRebuyDelta} compareLabel="vs season avg" />
-        <SummaryMetric label="Played time" value={formatDuration(round.duration_seconds)} />
+        <SummaryMetric label="Total pot" value={`${currency}${Number(round.total_pot).toLocaleString()}`} delta={totalPotDelta} compareLabel="vs season avg" betterWhen="higher" />
+        <SummaryMetric label="Total re-buy" value={round.total_rebuys.toLocaleString()} delta={totalRebuyDelta} compareLabel="vs season avg" betterWhen="lower" />
+        <SummaryMetric label="Avg re-buy / player" value={avgRebuy.toFixed(2)} delta={avgRebuyDelta} compareLabel="vs season avg" betterWhen="lower" />
+        <SummaryMetric label="Played time" value={formatDuration(round.duration_seconds)} delta={durationDelta} compareLabel="vs season avg" betterWhen="neutral" />
       </div>
 
       {/* Timeline */}
