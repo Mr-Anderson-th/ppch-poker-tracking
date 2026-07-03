@@ -696,9 +696,12 @@ function RunningView(props: {
           <div className="grid grid-cols-4 gap-3 mt-4 text-center">
             <Stat label="Players left" value={active.length} />
             <Stat label="Re-buys" value={props.totalRebuys} />
-            <Stat label="Pot" value={`${props.currency}${props.pot.toLocaleString()}`} />
+            <Stat label={props.rakeAmount > 0 ? "Net pot" : "Pot"} value={`${props.currency}${props.pot.toLocaleString()}`} />
             <Stat label="Elapsed" value={`${Math.floor(props.elapsedTotal / 60)}:${(props.elapsedTotal % 60).toString().padStart(2, "0")}`} />
           </div>
+          {props.rakeAmount > 0 && (
+            <p className="text-[11px] text-muted-foreground text-center mt-2">Rake withheld: {props.currency}{props.rakeAmount.toLocaleString()}</p>
+          )}
         </CardContent>
       </Card>
 
