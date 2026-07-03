@@ -85,8 +85,8 @@ function ClockPage() {
   }, [payoutPreset, customPayout]);
 
   const blindLevels = useMemo(
-    () => buildBlindLevels(startSb, startBb, multiplier, 40),
-    [startSb, startBb, multiplier],
+    () => buildBlindLevels(startSb, startBb, multiplier, 40, blindMode),
+    [startSb, startBb, multiplier, blindMode],
   );
 
   // Running state
