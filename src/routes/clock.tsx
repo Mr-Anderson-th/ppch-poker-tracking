@@ -581,6 +581,7 @@ function RunningView(props: {
   next: { level: number; sb: number; bb: number; ante: number };
   elapsedTotal: number;
   pot: number;
+  rakeAmount: number;
   payouts: number[];
   seats: SeatState[];
   totalRebuys: number;
