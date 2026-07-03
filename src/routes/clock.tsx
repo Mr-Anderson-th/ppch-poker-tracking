@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { usePlayers, useSettings, useRounds, type Player } from "@/lib/queries";
-import { buildBlindLevels, PAYOUT_PRESETS, distributePot } from "@/lib/points";
+import { buildBlindLevels, PAYOUT_PRESETS, distributePot, type BlindMode } from "@/lib/points";
+import { Checkbox } from "@/components/ui/checkbox";
 import { saveRound } from "@/lib/api/admin.functions";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
@@ -49,8 +50,11 @@ function ClockPage() {
   const [startSb, setStartSb] = useState(25);
   const [startBb, setStartBb] = useState(50);
   const [multiplier, setMultiplier] = useState(1.5);
+  const [blindMode, setBlindMode] = useState<BlindMode>("custom");
   const [payoutPreset, setPayoutPreset] = useState("50 / 30 / 20");
   const [customPayout, setCustomPayout] = useState("50,30,20");
+  const [rakeEnabled, setRakeEnabled] = useState(false);
+  const [rakePct, setRakePct] = useState(5);
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
 
   // Apply settings defaults once loaded
@@ -81,8 +85,8 @@ function ClockPage() {
   }, [payoutPreset, customPayout]);
 
   const blindLevels = useMemo(
-    () => buildBlindLevels(startSb, startBb, multiplier, 40),
-    [startSb, startBb, multiplier],
+    () => buildBlindLevels(startSb, startBb, multiplier, 40, blindMode),
+    [startSb, startBb, multiplier, blindMode],
   );
 
   // Running state
@@ -157,7 +161,9 @@ function ClockPage() {
   const activeSeats = seats.filter((s) => !s.out);
   const totalRebuys = seats.reduce((s, x) => s + x.rebuys, 0);
   const pot = seats.length * buyIn + totalRebuys * rebuy;
-  const payouts = distributePot(pot, payoutStructure);
+  const rakeAmount = rakeEnabled ? Math.round(pot * (rakePct / 100)) : 0;
+  const netPot = pot - rakeAmount;
+  const payouts = distributePot(netPot, payoutStructure);
 
   function knockout(seat: SeatState) {
     setBustDialog(seat);
@@ -264,13 +270,16 @@ function ClockPage() {
           startSb={startSb} setStartSb={setStartSb}
           startBb={startBb} setStartBb={setStartBb}
           multiplier={multiplier} setMultiplier={setMultiplier}
+          blindMode={blindMode} setBlindMode={setBlindMode}
           payoutPreset={payoutPreset} setPayoutPreset={setPayoutPreset}
           customPayout={customPayout} setCustomPayout={setCustomPayout}
+          rakeEnabled={rakeEnabled} setRakeEnabled={setRakeEnabled}
+          rakePct={rakePct} setRakePct={setRakePct}
           players={players}
           selectedPlayerIds={selectedPlayerIds}
           setSelectedPlayerIds={setSelectedPlayerIds}
           payoutStructure={payoutStructure}
-          previewBlinds={blindLevels.slice(0, 6)}
+          previewBlinds={blindLevels.slice(0, 8)}
           onStart={start}
           currency={settings?.currency ?? "฿"}
         />
@@ -283,7 +292,8 @@ function ClockPage() {
           cur={cur}
           next={next}
           elapsedTotal={elapsedTotal}
-          pot={pot}
+          pot={netPot}
+          rakeAmount={rakeAmount}
           payouts={payouts}
           seats={seats}
           totalRebuys={totalRebuys}
@@ -360,8 +370,11 @@ function SetupView(props: {
   startSb: number; setStartSb: (v: number) => void;
   startBb: number; setStartBb: (v: number) => void;
   multiplier: number; setMultiplier: (v: number) => void;
+  blindMode: BlindMode; setBlindMode: (v: BlindMode) => void;
   payoutPreset: string; setPayoutPreset: (v: string) => void;
   customPayout: string; setCustomPayout: (v: string) => void;
+  rakeEnabled: boolean; setRakeEnabled: (v: boolean) => void;
+  rakePct: number; setRakePct: (v: number) => void;
   players: Player[];
   selectedPlayerIds: string[];
   setSelectedPlayerIds: (v: string[] | ((p: string[]) => string[])) => void;
@@ -401,13 +414,13 @@ function SetupView(props: {
               </Select>
             </div>
             <div>
-              <Label>Blind multiplier</Label>
-              <Select value={String(props.multiplier)} onValueChange={(v) => props.setMultiplier(Number(v))}>
+              <Label>Blind structure</Label>
+              <Select value={props.blindMode} onValueChange={(v) => props.setBlindMode(v as BlindMode)}>
                 <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {[0.5, 1.0, 1.5, 2.0].map((m) => (
-                    <SelectItem key={m} value={String(m)}>{m.toFixed(1)}×</SelectItem>
-                  ))}
+                  <SelectItem value="wsop">Standard (WSOP T-2000)</SelectItem>
+                  <SelectItem value="hyper">Hyper-Turbo (×2)</SelectItem>
+                  <SelectItem value="custom">Custom multiplier</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -424,12 +437,44 @@ function SetupView(props: {
               </Select>
             </div>
           </div>
+          {props.blindMode === "custom" && (
+            <div>
+              <Label>Custom multiplier (per level)</Label>
+              <Input
+                type="number" step="0.1" min={0.1} max={10}
+                value={props.multiplier}
+                onChange={(e) => props.setMultiplier(Number(e.target.value) || 1)}
+                className="mt-1.5"
+              />
+            </div>
+          )}
           {props.payoutPreset === "Custom" && (
             <div>
               <Label>Custom payout (% comma-separated)</Label>
               <Input value={props.customPayout} onChange={(e) => props.setCustomPayout(e.target.value)} placeholder="e.g. 50,30,15,5" className="mt-1.5" />
             </div>
           )}
+          <div className="rounded-lg border border-border p-3 space-y-2">
+            <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+              <Checkbox
+                checked={props.rakeEnabled}
+                onCheckedChange={(c) => props.setRakeEnabled(c === true)}
+              />
+              Deduct rake from pot
+            </label>
+            {props.rakeEnabled && (
+              <div className="flex items-center gap-2">
+                <Label className="text-xs text-muted-foreground">Rake %</Label>
+                <Input
+                  type="number" min={0} max={20} step={0.5}
+                  value={props.rakePct}
+                  onChange={(e) => props.setRakePct(Math.max(0, Math.min(20, Number(e.target.value) || 0)))}
+                  className="w-24"
+                />
+                <span className="text-xs text-muted-foreground">of total pot goes to the house</span>
+              </div>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <NumField label="Starting SB" value={props.startSb} onChange={props.setStartSb} />
             <NumField label="Starting BB" value={props.startBb} onChange={props.setStartBb} />
@@ -475,17 +520,31 @@ function SetupView(props: {
         <Card>
           <CardHeader><CardTitle className="text-base">Payout preview</CardTitle></CardHeader>
           <CardContent className="text-sm">
-            <p className="text-muted-foreground mb-2">
-              Pot estimate (no re-buys): <strong className="text-foreground">{props.currency}{(props.selectedPlayerIds.length * props.buyIn).toLocaleString()}</strong>
-            </p>
-            <ul className="space-y-1.5">
-              {distributePot(props.selectedPlayerIds.length * props.buyIn, props.payoutStructure).map((amt, i) => (
-                <li key={i} className="flex justify-between border-b border-border/50 pb-1">
-                  <span>#{i + 1}</span>
-                  <span className="font-mono">{props.currency}{amt.toLocaleString()} <span className="text-muted-foreground">({props.payoutStructure[i]}%)</span></span>
-                </li>
-              ))}
-            </ul>
+            {(() => {
+              const grossPot = props.selectedPlayerIds.length * props.buyIn;
+              const rake = props.rakeEnabled ? Math.round(grossPot * (props.rakePct / 100)) : 0;
+              const netPot = grossPot - rake;
+              return (
+                <>
+                  <p className="text-muted-foreground mb-1">
+                    Pot estimate (no re-buys): <strong className="text-foreground">{props.currency}{grossPot.toLocaleString()}</strong>
+                  </p>
+                  {rake > 0 && (
+                    <p className="text-muted-foreground mb-2 text-xs">
+                      Rake ({props.rakePct}%): <span className="text-destructive">−{props.currency}{rake.toLocaleString()}</span> · Net pot: <strong className="text-foreground">{props.currency}{netPot.toLocaleString()}</strong>
+                    </p>
+                  )}
+                  <ul className="space-y-1.5">
+                    {distributePot(netPot, props.payoutStructure).map((amt, i) => (
+                      <li key={i} className="flex justify-between border-b border-border/50 pb-1">
+                        <span>#{i + 1}</span>
+                        <span className="font-mono">{props.currency}{amt.toLocaleString()} <span className="text-muted-foreground">({props.payoutStructure[i]}%)</span></span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              );
+            })()}
           </CardContent>
         </Card>
         <Card>
@@ -536,6 +595,7 @@ function RunningView(props: {
   next: { level: number; sb: number; bb: number; ante: number };
   elapsedTotal: number;
   pot: number;
+  rakeAmount: number;
   payouts: number[];
   seats: SeatState[];
   totalRebuys: number;
@@ -581,37 +641,55 @@ function RunningView(props: {
           </div>
 
           <div className="flex flex-col items-center py-6">
-            <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Level {props.cur.level} · Blinds</div>
-            <div className="text-2xl md:text-3xl font-bold text-primary tabular-nums">
-              {props.cur.sb} / {props.cur.bb}
-              {props.cur.ante ? <span className="text-sm text-muted-foreground ml-2">+ {props.cur.ante}</span> : null}
-            </div>
-            <div className="relative my-6">
-              <svg className="size-[260px] md:size-[320px] -rotate-90" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="46" fill="none" stroke="var(--border)" strokeWidth="3" />
-                <circle
-                  cx="50" cy="50" r="46" fill="none"
-                  stroke="url(#ringGrad)"
-                  strokeWidth="4"
-                  strokeLinecap="round"
-                  strokeDasharray={`${2 * Math.PI * 46}`}
-                  strokeDashoffset={`${2 * Math.PI * 46 * (1 - Math.min(1, props.remaining / (60 * 30)))}`}
-                  className="transition-all duration-300"
-                />
-                <defs>
-                  <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0%" stopColor="var(--primary)" />
-                    <stop offset="100%" stopColor="var(--info)" />
-                  </linearGradient>
-                </defs>
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <div className="text-5xl md:text-7xl font-bold tabular-nums tracking-tighter">
-                  {min}:{sec}
+            <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Level {props.cur.level}</div>
+
+            <div className="flex items-center justify-center gap-6 md:gap-10 my-6 w-full">
+              {/* SB — left */}
+              <div className="flex flex-col items-end text-right min-w-[60px]">
+                <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Small blind</div>
+                <div className="text-3xl md:text-5xl font-bold tabular-nums text-primary leading-none mt-1">
+                  {props.cur.sb.toLocaleString()}
                 </div>
-                <div className="text-xs text-muted-foreground mt-2">
-                  Next: {props.next.sb} / {props.next.bb}
+                <div className="text-[10px] text-muted-foreground mt-1">next {props.next.sb.toLocaleString()}</div>
+              </div>
+
+              {/* Clock ring */}
+              <div className="relative shrink-0">
+                <svg className="size-[220px] md:size-[300px] -rotate-90" viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="46" fill="none" stroke="var(--border)" strokeWidth="3" />
+                  <circle
+                    cx="50" cy="50" r="46" fill="none"
+                    stroke="url(#ringGrad)"
+                    strokeWidth="4"
+                    strokeLinecap="round"
+                    strokeDasharray={`${2 * Math.PI * 46}`}
+                    strokeDashoffset={`${2 * Math.PI * 46 * (1 - Math.min(1, props.remaining / (60 * 30)))}`}
+                    className="transition-all duration-300"
+                  />
+                  <defs>
+                    <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="var(--primary)" />
+                      <stop offset="100%" stopColor="var(--info)" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <div className="text-5xl md:text-6xl font-bold tabular-nums tracking-tighter">
+                    {min}:{sec}
+                  </div>
+                  {props.cur.ante ? (
+                    <div className="text-[11px] text-muted-foreground mt-1">ante {props.cur.ante.toLocaleString()}</div>
+                  ) : null}
                 </div>
+              </div>
+
+              {/* BB — right */}
+              <div className="flex flex-col items-start text-left min-w-[60px]">
+                <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Big blind</div>
+                <div className="text-3xl md:text-5xl font-bold tabular-nums text-primary leading-none mt-1">
+                  {props.cur.bb.toLocaleString()}
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-1">next {props.next.bb.toLocaleString()}</div>
               </div>
             </div>
 
@@ -632,9 +710,12 @@ function RunningView(props: {
           <div className="grid grid-cols-4 gap-3 mt-4 text-center">
             <Stat label="Players left" value={active.length} />
             <Stat label="Re-buys" value={props.totalRebuys} />
-            <Stat label="Pot" value={`${props.currency}${props.pot.toLocaleString()}`} />
+            <Stat label={props.rakeAmount > 0 ? "Net pot" : "Pot"} value={`${props.currency}${props.pot.toLocaleString()}`} />
             <Stat label="Elapsed" value={`${Math.floor(props.elapsedTotal / 60)}:${(props.elapsedTotal % 60).toString().padStart(2, "0")}`} />
           </div>
+          {props.rakeAmount > 0 && (
+            <p className="text-[11px] text-muted-foreground text-center mt-2">Rake withheld: {props.currency}{props.rakeAmount.toLocaleString()}</p>
+          )}
         </CardContent>
       </Card>
 

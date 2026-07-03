@@ -78,17 +78,18 @@ function RoundDetail() {
 
   const blindProgression = buildBlindLevels(round.starting_sb, round.starting_bb, Number(round.blind_multiplier), 12);
   const avgRebuy = round.total_players > 0 ? round.total_rebuys / round.total_players : 0;
-  const comparisonRounds = (round.season_id ? allRounds.filter((r) => r.season_id === round.season_id) : allRounds).filter(
-    (r) => r.total_players > 0,
-  );
-  const seasonAvgTotalRebuys = comparisonRounds.length
-    ? comparisonRounds.reduce((sum, r) => sum + r.total_rebuys, 0) / comparisonRounds.length
-    : null;
-  const seasonAvgRebuy = comparisonRounds.length
-    ? comparisonRounds.reduce((sum, r) => sum + r.total_rebuys / Math.max(r.total_players, 1), 0) / comparisonRounds.length
-    : null;
+  const comparisonRounds = (round.season_id ? allRounds.filter((r) => r.season_id === round.season_id) : allRounds)
+    .filter((r) => r.total_players > 0 && r.id !== round.id);
+  const avgOf = (fn: (r: (typeof comparisonRounds)[number]) => number) =>
+    comparisonRounds.length ? comparisonRounds.reduce((s, r) => s + fn(r), 0) / comparisonRounds.length : null;
+  const seasonAvgTotalRebuys = avgOf((r) => r.total_rebuys);
+  const seasonAvgRebuy = avgOf((r) => r.total_rebuys / Math.max(r.total_players, 1));
+  const seasonAvgPot = avgOf((r) => Number(r.total_pot));
+  const seasonAvgDuration = avgOf((r) => r.duration_seconds);
   const totalRebuyDelta = percentDelta(round.total_rebuys, seasonAvgTotalRebuys);
   const avgRebuyDelta = percentDelta(avgRebuy, seasonAvgRebuy);
+  const totalPotDelta = percentDelta(Number(round.total_pot), seasonAvgPot);
+  const durationDelta = percentDelta(round.duration_seconds, seasonAvgDuration);
 
   // Timeline data: bust events
   const bustPoints = results
@@ -185,10 +186,10 @@ function RoundDetail() {
       </Card>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <SummaryMetric label="Total pot" value={`${currency}${Number(round.total_pot).toLocaleString()}`} />
-        <SummaryMetric label="Total re-buy" value={round.total_rebuys.toLocaleString()} delta={totalRebuyDelta} compareLabel="vs season avg" />
-        <SummaryMetric label="Avg re-buy / player" value={avgRebuy.toFixed(2)} delta={avgRebuyDelta} compareLabel="vs season avg" />
-        <SummaryMetric label="Played time" value={formatDuration(round.duration_seconds)} />
+        <SummaryMetric label="Total pot" value={`${currency}${Number(round.total_pot).toLocaleString()}`} delta={totalPotDelta} compareLabel="vs season avg" betterWhen="higher" />
+        <SummaryMetric label="Total re-buy" value={round.total_rebuys.toLocaleString()} delta={totalRebuyDelta} compareLabel="vs season avg" betterWhen="lower" />
+        <SummaryMetric label="Avg re-buy / player" value={avgRebuy.toFixed(2)} delta={avgRebuyDelta} compareLabel="vs season avg" betterWhen="lower" />
+        <SummaryMetric label="Played time" value={formatDuration(round.duration_seconds)} delta={durationDelta} compareLabel="vs season avg" betterWhen="neutral" />
       </div>
 
       {/* Timeline */}
@@ -358,18 +359,25 @@ function percentDelta(value: number, avg: number | null) {
   return ((value - avg) / avg) * 100;
 }
 
-function SummaryMetric({ label, value, delta, compareLabel }: { label: string; value: string | number; delta?: number | null; compareLabel?: string }) {
+function SummaryMetric({ label, value, delta, compareLabel, betterWhen = "lower" }: { label: string; value: string | number; delta?: number | null; compareLabel?: string; betterWhen?: "lower" | "higher" | "neutral" }) {
   const hasDelta = delta != null && Number.isFinite(delta);
   const positive = hasDelta && delta > 0;
   const negative = hasDelta && delta < 0;
   const Icon = positive ? TrendingUp : negative ? TrendingDown : Minus;
+  const good = betterWhen === "higher" ? positive : betterWhen === "lower" ? negative : false;
+  const bad = betterWhen === "higher" ? negative : betterWhen === "lower" ? positive : false;
+  const tone = good
+    ? "bg-success/10 text-success"
+    : bad
+    ? "bg-destructive/10 text-destructive"
+    : "bg-secondary text-muted-foreground";
   return (
     <Card>
       <CardContent className="p-4">
         <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
         <div className="text-2xl font-bold tabular-nums mt-1">{value}</div>
         {compareLabel && (
-          <div className={`mt-2 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold ${positive ? "bg-destructive/10 text-destructive" : negative ? "bg-success/10 text-success" : "bg-secondary text-muted-foreground"}`}>
+          <div className={`mt-2 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold ${tone}`}>
             <Icon className="size-3" />
             {hasDelta ? `${positive ? "+" : ""}${delta.toFixed(1)}% ${compareLabel}` : `— ${compareLabel}`}
           </div>
