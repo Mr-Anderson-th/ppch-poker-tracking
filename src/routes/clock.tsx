@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { usePlayers, useSettings, useRounds, type Player } from "@/lib/queries";
-import { buildBlindLevels, PAYOUT_PRESETS, distributePot } from "@/lib/points";
+import { buildBlindLevels, PAYOUT_PRESETS, distributePot, type BlindMode } from "@/lib/points";
+import { Checkbox } from "@/components/ui/checkbox";
 import { saveRound } from "@/lib/api/admin.functions";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
