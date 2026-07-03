@@ -78,17 +78,18 @@ function RoundDetail() {
 
   const blindProgression = buildBlindLevels(round.starting_sb, round.starting_bb, Number(round.blind_multiplier), 12);
   const avgRebuy = round.total_players > 0 ? round.total_rebuys / round.total_players : 0;
-  const comparisonRounds = (round.season_id ? allRounds.filter((r) => r.season_id === round.season_id) : allRounds).filter(
-    (r) => r.total_players > 0,
-  );
-  const seasonAvgTotalRebuys = comparisonRounds.length
-    ? comparisonRounds.reduce((sum, r) => sum + r.total_rebuys, 0) / comparisonRounds.length
-    : null;
-  const seasonAvgRebuy = comparisonRounds.length
-    ? comparisonRounds.reduce((sum, r) => sum + r.total_rebuys / Math.max(r.total_players, 1), 0) / comparisonRounds.length
-    : null;
+  const comparisonRounds = (round.season_id ? allRounds.filter((r) => r.season_id === round.season_id) : allRounds)
+    .filter((r) => r.total_players > 0 && r.id !== round.id);
+  const avgOf = (fn: (r: (typeof comparisonRounds)[number]) => number) =>
+    comparisonRounds.length ? comparisonRounds.reduce((s, r) => s + fn(r), 0) / comparisonRounds.length : null;
+  const seasonAvgTotalRebuys = avgOf((r) => r.total_rebuys);
+  const seasonAvgRebuy = avgOf((r) => r.total_rebuys / Math.max(r.total_players, 1));
+  const seasonAvgPot = avgOf((r) => Number(r.total_pot));
+  const seasonAvgDuration = avgOf((r) => r.duration_seconds);
   const totalRebuyDelta = percentDelta(round.total_rebuys, seasonAvgTotalRebuys);
   const avgRebuyDelta = percentDelta(avgRebuy, seasonAvgRebuy);
+  const totalPotDelta = percentDelta(Number(round.total_pot), seasonAvgPot);
+  const durationDelta = percentDelta(round.duration_seconds, seasonAvgDuration);
 
   // Timeline data: bust events
   const bustPoints = results
