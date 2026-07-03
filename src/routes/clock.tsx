@@ -627,37 +627,55 @@ function RunningView(props: {
           </div>
 
           <div className="flex flex-col items-center py-6">
-            <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Level {props.cur.level} · Blinds</div>
-            <div className="text-2xl md:text-3xl font-bold text-primary tabular-nums">
-              {props.cur.sb} / {props.cur.bb}
-              {props.cur.ante ? <span className="text-sm text-muted-foreground ml-2">+ {props.cur.ante}</span> : null}
-            </div>
-            <div className="relative my-6">
-              <svg className="size-[260px] md:size-[320px] -rotate-90" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="46" fill="none" stroke="var(--border)" strokeWidth="3" />
-                <circle
-                  cx="50" cy="50" r="46" fill="none"
-                  stroke="url(#ringGrad)"
-                  strokeWidth="4"
-                  strokeLinecap="round"
-                  strokeDasharray={`${2 * Math.PI * 46}`}
-                  strokeDashoffset={`${2 * Math.PI * 46 * (1 - Math.min(1, props.remaining / (60 * 30)))}`}
-                  className="transition-all duration-300"
-                />
-                <defs>
-                  <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0%" stopColor="var(--primary)" />
-                    <stop offset="100%" stopColor="var(--info)" />
-                  </linearGradient>
-                </defs>
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <div className="text-5xl md:text-7xl font-bold tabular-nums tracking-tighter">
-                  {min}:{sec}
+            <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Level {props.cur.level}</div>
+
+            <div className="flex items-center justify-center gap-6 md:gap-10 my-6 w-full">
+              {/* SB — left */}
+              <div className="flex flex-col items-end text-right min-w-[60px]">
+                <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Small blind</div>
+                <div className="text-3xl md:text-5xl font-bold tabular-nums text-primary leading-none mt-1">
+                  {props.cur.sb.toLocaleString()}
                 </div>
-                <div className="text-xs text-muted-foreground mt-2">
-                  Next: {props.next.sb} / {props.next.bb}
+                <div className="text-[10px] text-muted-foreground mt-1">next {props.next.sb.toLocaleString()}</div>
+              </div>
+
+              {/* Clock ring */}
+              <div className="relative shrink-0">
+                <svg className="size-[220px] md:size-[300px] -rotate-90" viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="46" fill="none" stroke="var(--border)" strokeWidth="3" />
+                  <circle
+                    cx="50" cy="50" r="46" fill="none"
+                    stroke="url(#ringGrad)"
+                    strokeWidth="4"
+                    strokeLinecap="round"
+                    strokeDasharray={`${2 * Math.PI * 46}`}
+                    strokeDashoffset={`${2 * Math.PI * 46 * (1 - Math.min(1, props.remaining / (60 * 30)))}`}
+                    className="transition-all duration-300"
+                  />
+                  <defs>
+                    <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="var(--primary)" />
+                      <stop offset="100%" stopColor="var(--info)" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <div className="text-5xl md:text-6xl font-bold tabular-nums tracking-tighter">
+                    {min}:{sec}
+                  </div>
+                  {props.cur.ante ? (
+                    <div className="text-[11px] text-muted-foreground mt-1">ante {props.cur.ante.toLocaleString()}</div>
+                  ) : null}
                 </div>
+              </div>
+
+              {/* BB — right */}
+              <div className="flex flex-col items-start text-left min-w-[60px]">
+                <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Big blind</div>
+                <div className="text-3xl md:text-5xl font-bold tabular-nums text-primary leading-none mt-1">
+                  {props.cur.bb.toLocaleString()}
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-1">next {props.next.bb.toLocaleString()}</div>
               </div>
             </div>
 
