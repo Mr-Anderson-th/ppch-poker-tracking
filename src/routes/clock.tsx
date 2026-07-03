@@ -161,7 +161,9 @@ function ClockPage() {
   const activeSeats = seats.filter((s) => !s.out);
   const totalRebuys = seats.reduce((s, x) => s + x.rebuys, 0);
   const pot = seats.length * buyIn + totalRebuys * rebuy;
-  const payouts = distributePot(pot, payoutStructure);
+  const rakeAmount = rakeEnabled ? Math.round(pot * (rakePct / 100)) : 0;
+  const netPot = pot - rakeAmount;
+  const payouts = distributePot(netPot, payoutStructure);
 
   function knockout(seat: SeatState) {
     setBustDialog(seat);
