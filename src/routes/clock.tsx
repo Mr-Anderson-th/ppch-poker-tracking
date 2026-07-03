@@ -520,17 +520,31 @@ function SetupView(props: {
         <Card>
           <CardHeader><CardTitle className="text-base">Payout preview</CardTitle></CardHeader>
           <CardContent className="text-sm">
-            <p className="text-muted-foreground mb-2">
-              Pot estimate (no re-buys): <strong className="text-foreground">{props.currency}{(props.selectedPlayerIds.length * props.buyIn).toLocaleString()}</strong>
-            </p>
-            <ul className="space-y-1.5">
-              {distributePot(props.selectedPlayerIds.length * props.buyIn, props.payoutStructure).map((amt, i) => (
-                <li key={i} className="flex justify-between border-b border-border/50 pb-1">
-                  <span>#{i + 1}</span>
-                  <span className="font-mono">{props.currency}{amt.toLocaleString()} <span className="text-muted-foreground">({props.payoutStructure[i]}%)</span></span>
-                </li>
-              ))}
-            </ul>
+            {(() => {
+              const grossPot = props.selectedPlayerIds.length * props.buyIn;
+              const rake = props.rakeEnabled ? Math.round(grossPot * (props.rakePct / 100)) : 0;
+              const netPot = grossPot - rake;
+              return (
+                <>
+                  <p className="text-muted-foreground mb-1">
+                    Pot estimate (no re-buys): <strong className="text-foreground">{props.currency}{grossPot.toLocaleString()}</strong>
+                  </p>
+                  {rake > 0 && (
+                    <p className="text-muted-foreground mb-2 text-xs">
+                      Rake ({props.rakePct}%): <span className="text-destructive">−{props.currency}{rake.toLocaleString()}</span> · Net pot: <strong className="text-foreground">{props.currency}{netPot.toLocaleString()}</strong>
+                    </p>
+                  )}
+                  <ul className="space-y-1.5">
+                    {distributePot(netPot, props.payoutStructure).map((amt, i) => (
+                      <li key={i} className="flex justify-between border-b border-border/50 pb-1">
+                        <span>#{i + 1}</span>
+                        <span className="font-mono">{props.currency}{amt.toLocaleString()} <span className="text-muted-foreground">({props.payoutStructure[i]}%)</span></span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              );
+            })()}
           </CardContent>
         </Card>
         <Card>
