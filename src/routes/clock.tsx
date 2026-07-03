@@ -50,8 +50,11 @@ function ClockPage() {
   const [startSb, setStartSb] = useState(25);
   const [startBb, setStartBb] = useState(50);
   const [multiplier, setMultiplier] = useState(1.5);
+  const [blindMode, setBlindMode] = useState<BlindMode>("custom");
   const [payoutPreset, setPayoutPreset] = useState("50 / 30 / 20");
   const [customPayout, setCustomPayout] = useState("50,30,20");
+  const [rakeEnabled, setRakeEnabled] = useState(false);
+  const [rakePct, setRakePct] = useState(5);
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
 
   // Apply settings defaults once loaded
