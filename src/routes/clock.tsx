@@ -306,27 +306,6 @@ function ClockPage() {
           currency={settings?.currency ?? "฿"}
         />
       )}
-        <RunningView
-          name={name}
-          remaining={remaining}
-          paused={paused}
-          setPaused={setPaused}
-          cur={cur}
-          next={next}
-          elapsedTotal={elapsedTotal}
-          pot={pot}
-          payouts={payouts}
-          seats={seats}
-          totalRebuys={totalRebuys}
-          onKnockout={knockout}
-          onRebuy={addRebuy}
-          onNextLevel={() => { setCurrentLevel((l) => l + 1); setRemaining(levelMinutes * 60); }}
-          onPrevLevel={() => { setCurrentLevel((l) => Math.max(0, l - 1)); setRemaining(levelMinutes * 60); }}
-          onReset={reset}
-          onEnd={() => setEndDialog(true)}
-          currency={settings?.currency ?? "฿"}
-        />
-      )}
 
       {/* Bust confirm dialog */}
       <Dialog open={!!bustDialog} onOpenChange={(o) => !o && setBustDialog(null)}>
