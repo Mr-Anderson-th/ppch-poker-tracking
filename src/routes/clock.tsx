@@ -270,17 +270,42 @@ function ClockPage() {
           startSb={startSb} setStartSb={setStartSb}
           startBb={startBb} setStartBb={setStartBb}
           multiplier={multiplier} setMultiplier={setMultiplier}
+          blindMode={blindMode} setBlindMode={setBlindMode}
           payoutPreset={payoutPreset} setPayoutPreset={setPayoutPreset}
           customPayout={customPayout} setCustomPayout={setCustomPayout}
+          rakeEnabled={rakeEnabled} setRakeEnabled={setRakeEnabled}
+          rakePct={rakePct} setRakePct={setRakePct}
           players={players}
           selectedPlayerIds={selectedPlayerIds}
           setSelectedPlayerIds={setSelectedPlayerIds}
           payoutStructure={payoutStructure}
-          previewBlinds={blindLevels.slice(0, 6)}
+          previewBlinds={blindLevels.slice(0, 8)}
           onStart={start}
           currency={settings?.currency ?? "฿"}
         />
       ) : (
+        <RunningView
+          name={name}
+          remaining={remaining}
+          paused={paused}
+          setPaused={setPaused}
+          cur={cur}
+          next={next}
+          elapsedTotal={elapsedTotal}
+          pot={netPot}
+          rakeAmount={rakeAmount}
+          payouts={payouts}
+          seats={seats}
+          totalRebuys={totalRebuys}
+          onKnockout={knockout}
+          onRebuy={addRebuy}
+          onNextLevel={() => { setCurrentLevel((l) => l + 1); setRemaining(levelMinutes * 60); }}
+          onPrevLevel={() => { setCurrentLevel((l) => Math.max(0, l - 1)); setRemaining(levelMinutes * 60); }}
+          onReset={reset}
+          onEnd={() => setEndDialog(true)}
+          currency={settings?.currency ?? "฿"}
+        />
+      )}
         <RunningView
           name={name}
           remaining={remaining}
