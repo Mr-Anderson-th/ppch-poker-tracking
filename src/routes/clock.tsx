@@ -370,8 +370,11 @@ function SetupView(props: {
   startSb: number; setStartSb: (v: number) => void;
   startBb: number; setStartBb: (v: number) => void;
   multiplier: number; setMultiplier: (v: number) => void;
+  blindMode: BlindMode; setBlindMode: (v: BlindMode) => void;
   payoutPreset: string; setPayoutPreset: (v: string) => void;
   customPayout: string; setCustomPayout: (v: string) => void;
+  rakeEnabled: boolean; setRakeEnabled: (v: boolean) => void;
+  rakePct: number; setRakePct: (v: number) => void;
   players: Player[];
   selectedPlayerIds: string[];
   setSelectedPlayerIds: (v: string[] | ((p: string[]) => string[])) => void;
