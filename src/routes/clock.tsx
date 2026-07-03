@@ -414,13 +414,13 @@ function SetupView(props: {
               </Select>
             </div>
             <div>
-              <Label>Blind multiplier</Label>
-              <Select value={String(props.multiplier)} onValueChange={(v) => props.setMultiplier(Number(v))}>
+              <Label>Blind structure</Label>
+              <Select value={props.blindMode} onValueChange={(v) => props.setBlindMode(v as BlindMode)}>
                 <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {[0.5, 1.0, 1.5, 2.0].map((m) => (
-                    <SelectItem key={m} value={String(m)}>{m.toFixed(1)}×</SelectItem>
-                  ))}
+                  <SelectItem value="wsop">Standard (WSOP T-2000)</SelectItem>
+                  <SelectItem value="hyper">Hyper-Turbo (×2)</SelectItem>
+                  <SelectItem value="custom">Custom multiplier</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -437,12 +437,44 @@ function SetupView(props: {
               </Select>
             </div>
           </div>
+          {props.blindMode === "custom" && (
+            <div>
+              <Label>Custom multiplier (per level)</Label>
+              <Input
+                type="number" step="0.1" min={0.1} max={10}
+                value={props.multiplier}
+                onChange={(e) => props.setMultiplier(Number(e.target.value) || 1)}
+                className="mt-1.5"
+              />
+            </div>
+          )}
           {props.payoutPreset === "Custom" && (
             <div>
               <Label>Custom payout (% comma-separated)</Label>
               <Input value={props.customPayout} onChange={(e) => props.setCustomPayout(e.target.value)} placeholder="e.g. 50,30,15,5" className="mt-1.5" />
             </div>
           )}
+          <div className="rounded-lg border border-border p-3 space-y-2">
+            <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+              <Checkbox
+                checked={props.rakeEnabled}
+                onCheckedChange={(c) => props.setRakeEnabled(c === true)}
+              />
+              Deduct rake from pot
+            </label>
+            {props.rakeEnabled && (
+              <div className="flex items-center gap-2">
+                <Label className="text-xs text-muted-foreground">Rake %</Label>
+                <Input
+                  type="number" min={0} max={20} step={0.5}
+                  value={props.rakePct}
+                  onChange={(e) => props.setRakePct(Math.max(0, Math.min(20, Number(e.target.value) || 0)))}
+                  className="w-24"
+                />
+                <span className="text-xs text-muted-foreground">of total pot goes to the house</span>
+              </div>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <NumField label="Starting SB" value={props.startSb} onChange={props.setStartSb} />
             <NumField label="Starting BB" value={props.startBb} onChange={props.setStartBb} />
