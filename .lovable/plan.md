@@ -1,61 +1,111 @@
-## 1. Clock — Blind structure presets
+## เป้าหมาย
 
-Replace the single "Blind multiplier" dropdown with a **Blind structure** selector with 3 modes:
+รื้อหน้า `/players` และ `/players/$id` ใหม่ให้ Season filter ทำงานเหมือน homepage, กราฟ Radar 5 แกนสไตล์ gaming, และ admin จัดการ badge ได้ครบ
 
-- **Standard (WSOP T-2,000 Rule)** — Use a fixed WSOP-style level table (progression roughly 1.25×–1.5× tapering, with antes kicking in at level 3). Encoded as an explicit array in `src/lib/points.ts`:
-  ```
-  [25/50, 50/100, 75/150+a25, 100/200+a25, 150/300+a50, 200/400+a50,
-   300/600+a75, 400/800+a100, 500/1000+a100, 700/1400+a200,
-   1000/2000+a300, 1500/3000+a400, 2000/4000+a500, 3000/6000+a1000, ...]
-  ```
-  Scaled from the user's Starting SB/BB (levels are multiplied by `startSb / 25`).
-- **Hyper-Turbo** — pure ×2 doubling every level.
-- **Custom** — user-editable numeric multiplier (0.1–10), same UI as today.
+---
 
-Implementation: extend `buildBlindLevels()` to accept `{ mode: "wsop" | "hyper" | "custom"; multiplier?: number }`. Store the mode in state alongside multiplier. Blind preview table stays; DB still saves `blind_multiplier` (for WSOP we save `0` or a sentinel and reconstruct on replay is out of scope — we'll persist an effective multiplier of `1.5` for WSOP and `2` for Hyper so historical rounds stay compatible without a migration).
+## 1. `/players` (list) — เพิ่ม Season filter
 
-## 2. Clock — Payout rake option
+- เพิ่ม `<Select>` "Season" ที่หัวหน้า (All-time / แต่ละ season) — pattern เดียวกับหน้า Dashboard
+- state เก็บใน URL search param `?season=<id>` เพื่อให้ share ได้
+- เมื่อเลือก season: กรอง `results` เฉพาะ round ที่ `season_id === selected` แล้วคำนวณ points/wins/rounds/net ใหม่ + rank ตาม season นั้น
+- Card ของแต่ละ player ยังเป็น `<Link to="/players/$id" params={{id}} search={{season}}>` เพื่อพา season selection ไปหน้า detail
 
-Under the Payout selector, add:
-- Checkbox **"Deduct rake from pot"**
-- Numeric input **"Rake %"** (0–20, default 5) shown when checkbox is on
+## 2. `/players/$id` (view performance) — เขียนใหม่ทั้งหน้า
 
-When active, `distributePot(pot * (1 - rake/100), structure)` is used. Payout preview shows the rake amount and net pot. Persisted implicitly via the final `payout` values on each result — no DB schema change.
-
-## 3. Clock — Timer face redesign
-
-In `RunningView`, move blind numbers off the top and place them **flanking the circle**:
+### Layout สไตล์ Gaming (dark, neon accent, glow shadows)
 
 ```
-      Level 5
-   ┌──────────────┐
-   │              │
-SB │   12:34      │ BB
-150│              │300
-   │  Next 200/400│
-   └──────────────┘
+┌───────────────────────────────────────────────┐
+│ [Avatar]  Name · nickname     [Season ▾]     │
+│           🏆🎖️🌟 (badges + admin edit)         │
+├───────────────────────────────────────────────┤
+│  KPI grid (6 การ์ด · แสดงค่า + Δ% vs avg)     │
+│  ITM% · Win%(#) · Rounds · Points · Money · AvgRebuy │
+├───────────────────────────────────────────────┤
+│  [ Radar Chart 5 แกน (0-10) ]  │  Score table │
+│   Gaming style + Animation     │  ต่อแกน      │
+├───────────────────────────────────────────────┤
+│  Recent Rounds table (last 10-20 rounds)      │
+└───────────────────────────────────────────────┘
 ```
 
-- SB label + value: absolutely positioned to the **left** of the SVG ring, vertically centered.
-- BB label + value: absolutely positioned to the **right** of the SVG ring, vertically centered.
-- Center of ring keeps countdown `mm:ss` and "Next: sb/bb" hint.
-- Ante (if any) shown as a small chip below the ring.
+### Season selector
 
-Uses flexbox row with the SVG in the middle and two column labels on either side; keeps the existing gradient ring.
+- `<Select>` เหมือน `/players` list; sync กับ URL `?season=`
+- ทุก metric/รอบ/radar คำนวณจาก `results` ที่กรองด้วย season นั้น (All-time = ไม่กรอง)
 
-## 4. Round detail — % deltas on Total Pot & Played Time
+### Header block
 
-In `src/routes/rounds.$id.tsx`, the summary metric cards for **Total Pot** and **Played Time** currently show only the raw value. Add the same `vs season avg` delta styling already used for Total Re-buy / Avg Re-buy:
+- `PlayerAvatar size="xl"` + name/nickname
+- แถว badge ทั้งหมด (all-time) — ปุ่ม `Grant` และปุ่ม `X` ลบต่อ badge (มีอยู่แล้ว, ขัดเกลา UI)
 
-- Compute season averages from rounds already fetched with `season_id === current.season_id` (excluding the current round).
-- Total Pot: `((pot - avgPot) / avgPot) * 100` — show `▲ 12% vs season avg` in green, `▼` in red.
-- Played Time: same formula on `duration_seconds`.
-- Fall back to `—` when there's no other round in the season yet.
+### KPI cards (6 การ์ด vs ค่าเฉลี่ยผู้เล่นคนอื่น)
 
-## Files touched
+สำหรับแต่ละ metric คำนวณ `myVal` และ `groupAvg` (เฉลี่ยจากทุกผู้เล่นที่มี rounds > 0 ใน season ที่เลือก), แสดง `▲/▼ X%` เทียบ groupAvg สไตล์เดียวกับ `/rounds/$id`:
 
-- `src/lib/points.ts` — add WSOP level table + updated `buildBlindLevels`.
-- `src/routes/clock.tsx` — structure preset selector, rake checkbox/input, redesigned timer face.
-- `src/routes/rounds.$id.tsx` — season-avg deltas for pot and duration cards.
 
-No database migration, no server function changes.
+| Card             | สูตร                                                                 |
+| ---------------- | -------------------------------------------------------------------- |
+| ITM Rate         | `payout>0 count / rounds * 100`                                      |
+| Win Rate (#wins) | `wins/rounds * 100`                                                  |
+| Rounds Played    | นับตรง ๆ                                                             |
+| Points           | รวม `points_awarded`                                                 |
+| Money Won        | รวม `payout` (หรือ `net_amount` — จะใช้ payout ตามคำขอ "เงินที่ได้") |
+| Avg Rebuy        | `sum(rebuys) / rounds`                                               |
+
+
+### Radar Chart 5 แกน (0-10) — component ใหม่ `PlayerRadar.tsx`
+
+Props: `{ survival, efficiency, aggression, potDominance, consistency: number /* 0-10 */ }`
+
+สูตรคำนวณ (ต่อรอบแล้วเฉลี่ยข้าม rounds ของ player):
+
+1. **Survival** = `avg( bust_time_seconds / round.duration_seconds ) * 10`
+2. **Efficiency** = `avg( min(10, points_awarded / (rebuys + 1) * 0.1) )`
+3. **Aggression** = `avg( bust_bb / maxBbInMatch ) * 10` — `maxBbInMatch` = BB ของ level สูงสุดที่ round นั้นแตะ (คำนวณจาก `buildBlindLevels` โดยดู `bust_level` สูงสุดใน round; fallback = BB ที่ level ของผู้ชนะ)
+4. **Pot Dominance** = `avg( payout / round.total_pot ) * 10`
+5. **Consistency** = `avg( (1 - (finish_position - 1) / round.total_players) ) * 10`
+
+Rounds ที่ข้อมูลไม่ครบ (เช่น `bust_bb` null) จะข้ามในแกนที่เกี่ยวข้อง
+
+Styling (Gaming theme):
+
+- พื้นหลัง dark radial gradient + grid neon (สี `--primary` glow)
+- 2 layer: player = fill สี primary translucent + stroke neon glow (`filter: drop-shadow`); group avg = dashed stroke สีจาง
+- Animation: recharts `Radar` มี `isAnimationActive` + custom `animationBegin` + `animationDuration=1200` easing `ease-out`, พร้อม CSS `@keyframes` pulse บนจุด vertex
+- ข้าง ๆ radar: ตารางเล็กแสดงคะแนน 0-10 แต่ละแกน + bar สั้น ๆ
+
+### Recent Rounds table (ด้านล่าง)
+
+คอลัมน์: Date · Round · Finish · Points · Payout · Net · Rebuys · Bust BB
+
+- แถวคลิกได้ → `/rounds/$id`
+- แสดง 20 รอบล่าสุดของ player (กรองตาม season)
+
+## 3. Admin badge editing (ปรับปรุงจากของเดิม)
+
+- ปุ่ม `Grant badge` เปิด dialog เลือก badge + optional note + optional season → เรียก `grantBadge` (มีอยู่แล้ว)
+- ปุ่ม `X` บน badge → `revokeBadge` (มีอยู่แล้ว)
+- เพิ่ม hover state ให้ชัดขึ้น + confirm dialog สวยขึ้น
+
+---
+
+## Files ที่แตะ
+
+- `src/routes/players.tsx` — เพิ่ม Season `<Select>` + filter logic + URL search param
+- `src/routes/players.$id.tsx` — เขียนใหม่: season selector, KPI vs avg, radar, table
+- `src/components/PlayerRadar.tsx` — **ใหม่** radar 5-axis gaming style + animation
+- `src/lib/points.ts` — export helper `computePlayerAxes(results, rounds, playerId)` คืนคะแนน 0-10 ทั้ง 5 แกน
+- `src/styles.css` — เพิ่ม keyframes `radar-pulse`, utility `.neon-glow` (ถ้ายังไม่มี)
+
+## ไม่แตะ
+
+- ไม่มี migration; ข้อมูลทั้งหมดใช้จากตารางเดิม (`rounds`, `round_results`, `player_badges`)
+- ไม่แตะ server functions ยกเว้นใช้ `grantBadge` / `revokeBadge` ที่มีอยู่
+
+## จุดที่อยากคอนเฟิร์ม (ทำต่อได้เลยด้วย default ถ้าไม่ตอบ)
+
+1. "เงินที่ได้" = **payout** (เงินรางวัลรวม) ไม่ใช่ net — default ใช้ payout
+2. Efficiency factor `0.1` — ใช้ตามสูตรที่ให้; ถ้า points ต่ำมากในระบบนี้ (max ~100) คะแนนจะเต็ม 10 ง่าย → default คงไว้ 0.1 ตามที่ระบุ
+3. Recent rounds table แสดง 20 แถวล่าสุด (มีปุ่ม "ดูทั้งหมด" ไป `/rounds`)
