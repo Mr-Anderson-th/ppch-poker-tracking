@@ -88,3 +88,101 @@ export function distributePot(pot: number, structure: number[]): number[] {
   const totalPct = structure.reduce((a, b) => a + b, 0) || 100;
   return structure.map((p) => Math.round((pot * p) / totalPct));
 }
+
+// ============ Player skill axes (0-10) ============
+
+type AxisRound = {
+  id: string;
+  duration_seconds: number | null;
+  total_players: number;
+  total_pot: number;
+};
+type AxisResult = {
+  round_id: string;
+  player_id: string;
+  finish_position: number;
+  rebuys: number;
+  bust_bb: number | null;
+  bust_time_seconds: number | null;
+  payout: number;
+  points_awarded: number;
+};
+
+export type PlayerAxes = {
+  survival: number;
+  efficiency: number;
+  aggression: number;
+  potDominance: number;
+  consistency: number;
+};
+
+/**
+ * Compute 0-10 axes for a specific player across the provided rounds/results.
+ * Only rounds present in `rounds` array are considered.
+ */
+export function computePlayerAxes(
+  playerId: string,
+  rounds: AxisRound[],
+  results: AxisResult[],
+): PlayerAxes {
+  const roundById = new Map(rounds.map((r) => [r.id, r]));
+  const mine = results.filter((r) => r.player_id === playerId && roundById.has(r.round_id));
+
+  // Precompute max bust_bb per round (proxy for maxBbInMatch)
+  const maxBbInRound = new Map<string, number>();
+  for (const r of results) {
+    if (!roundById.has(r.round_id)) continue;
+    if (r.bust_bb != null) {
+      const cur = maxBbInRound.get(r.round_id) ?? 0;
+      if (r.bust_bb > cur) maxBbInRound.set(r.round_id, r.bust_bb);
+    }
+  }
+
+  const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+  const clamp = (v: number) => Math.max(0, Math.min(10, v));
+
+  // 1. Survival: bust_time / duration
+  const survivalVals: number[] = [];
+  for (const r of mine) {
+    const rd = roundById.get(r.round_id);
+    if (!rd?.duration_seconds || r.bust_time_seconds == null) continue;
+    survivalVals.push((r.bust_time_seconds / rd.duration_seconds) * 10);
+  }
+
+  // 2. Efficiency: min(10, points/(rebuys+1) * 0.1)
+  const efficiencyVals = mine.map((r) => Math.min(10, (r.points_awarded / (r.rebuys + 1)) * 0.1));
+
+  // 3. Aggression: bust_bb / max_bb_in_match
+  const aggressionVals: number[] = [];
+  for (const r of mine) {
+    if (r.bust_bb == null) continue;
+    const maxBb = maxBbInRound.get(r.round_id);
+    if (!maxBb || maxBb <= 0) continue;
+    aggressionVals.push((r.bust_bb / maxBb) * 10);
+  }
+
+  // 4. Pot dominance: payout / total_pot
+  const potVals: number[] = [];
+  for (const r of mine) {
+    const rd = roundById.get(r.round_id);
+    if (!rd?.total_pot) continue;
+    potVals.push((Number(r.payout) / Number(rd.total_pot)) * 10);
+  }
+
+  // 5. Consistency: (1 - (finish-1)/total_players) * 10
+  const consistencyVals: number[] = [];
+  for (const r of mine) {
+    const rd = roundById.get(r.round_id);
+    if (!rd?.total_players) continue;
+    consistencyVals.push((1 - (r.finish_position - 1) / rd.total_players) * 10);
+  }
+
+  return {
+    survival: clamp(avg(survivalVals)),
+    efficiency: clamp(avg(efficiencyVals)),
+    aggression: clamp(avg(aggressionVals)),
+    potDominance: clamp(avg(potVals)),
+    consistency: clamp(avg(consistencyVals)),
+  };
+}
+
