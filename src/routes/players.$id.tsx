@@ -1,42 +1,69 @@
-import { createFileRoute, Link, useParams } from "@tanstack/react-router";
+import { createFileRoute, Link, useParams, useSearch } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { z } from "zod";
+import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { usePlayers, useResults, useRounds, useSettings, useBadges, usePlayerBadges, useSeasons, useSeasonStandings } from "@/lib/queries";
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, RadarChart, Radar, PolarAngleAxis, PolarGrid, PolarRadiusAxis } from "recharts";
+import {
+  usePlayers, useResults, useRounds, useSettings, useBadges, usePlayerBadges, useSeasons,
+} from "@/lib/queries";
 import { format } from "date-fns";
 import { PlayerAvatar } from "@/components/Avatar";
 import { BadgeChip } from "@/components/BadgeChip";
+import { PlayerRadar } from "@/components/PlayerRadar";
+import { computePlayerAxes } from "@/lib/points";
 import { useAdminUnlocked, getAdminPassword } from "@/lib/admin-store";
 import { useServerFn } from "@tanstack/react-start";
 import { grantBadge, revokeBadge } from "@/lib/api/admin.functions";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, X } from "lucide-react";
+import { Plus, X, TrendingUp, TrendingDown, Minus } from "lucide-react";
+
+const searchSchema = z.object({
+  season: fallback(z.string(), "__all").default("__all"),
+});
 
 export const Route = createFileRoute("/players/$id")({
   head: () => ({ meta: [{ title: "Player — PPCH" }] }),
+  validateSearch: zodValidator(searchSchema),
   component: PlayerDetail,
 });
 
 function PlayerDetail() {
   const { id } = useParams({ from: "/players/$id" });
+  const { season: seasonFromUrl } = useSearch({ from: "/players/$id" });
+  const [seasonFilter, setSeasonFilter] = useState<string>(seasonFromUrl);
+
   const { data: players = [] } = usePlayers();
-  const { data: results = [] } = useResults();
-  const { data: rounds = [] } = useRounds();
+  const { data: allResults = [] } = useResults();
+  const { data: allRounds = [] } = useRounds();
   const { data: settings } = useSettings();
   const { data: badges = [] } = useBadges();
   const { data: playerBadges = [] } = usePlayerBadges();
   const { data: seasons = [] } = useSeasons();
-  const { data: allStandings = [] } = useSeasonStandings();
   const currency = settings?.currency ?? "฿";
   const unlocked = useAdminUnlocked();
   const [grantOpen, setGrantOpen] = useState(false);
   const queryClient = useQueryClient();
   const grantFn = useServerFn(grantBadge);
   const revokeFn = useServerFn(revokeBadge);
+
+  const activeSeason = useMemo(() => seasons.find((s) => !s.ended_at), [seasons]);
+  const effectiveSeasonId =
+    seasonFilter === "__active" ? activeSeason?.id ?? null : seasonFilter === "__all" ? null : seasonFilter;
+
+  const rounds = useMemo(
+    () => (effectiveSeasonId ? allRounds.filter((r) => r.season_id === effectiveSeasonId) : allRounds),
+    [allRounds, effectiveSeasonId],
+  );
+  const roundIdSet = useMemo(() => new Set(rounds.map((r) => r.id)), [rounds]);
+  const results = useMemo(
+    () => (effectiveSeasonId ? allResults.filter((r) => roundIdSet.has(r.round_id)) : allResults),
+    [allResults, roundIdSet, effectiveSeasonId],
+  );
 
   const player = players.find((p) => p.id === id);
   const myResults = useMemo(() => results.filter((r) => r.player_id === id), [results, id]);
@@ -45,173 +72,93 @@ function PlayerDetail() {
   const myBadges = useMemo(() => playerBadges.filter((pb) => pb.player_id === id), [playerBadges, id]);
 
   const enriched = useMemo(() => {
-    return myResults.map((r) => {
-      const rd = rounds.find((x) => x.id === r.round_id);
-      return { ...r, round: rd };
-    }).sort((a, b) => +new Date(b.round?.played_at ?? 0) - +new Date(a.round?.played_at ?? 0));
+    return myResults
+      .map((r) => ({ ...r, round: rounds.find((x) => x.id === r.round_id) }))
+      .sort((a, b) => +new Date(b.round?.played_at ?? 0) - +new Date(a.round?.played_at ?? 0));
   }, [myResults, rounds]);
 
-  const totals = useMemo(() => {
-    const points = myResults.reduce((s, r) => s + r.points_awarded, 0);
-    const net = myResults.reduce((s, r) => s + Number(r.net_amount), 0);
+  // ---- Player metrics (KPI cards) ----
+  const my = useMemo(() => {
+    const n = myResults.length;
     const wins = myResults.filter((r) => r.finish_position === 1).length;
-    const rebuys = myResults.reduce((s, r) => s + r.rebuys, 0);
-    const top3 = myResults.filter((r) => r.finish_position <= 3).length;
-    const avgFinish = myResults.length ? (myResults.reduce((s, r) => s + r.finish_position, 0) / myResults.length).toFixed(1) : "—";
-    const totalCost = enriched.reduce((s, r) => s + (Number(r.round?.buy_in ?? 0) + r.rebuys * Number(r.round?.rebuy_amount ?? 0)), 0);
-    const totalPayout = myResults.reduce((s, r) => s + Number(r.payout), 0);
-    const roi = totalCost > 0 ? (net / totalCost) * 100 : 0;
     const itm = myResults.filter((r) => Number(r.payout) > 0).length;
-    return { points, net, wins, rebuys, top3, avgFinish, rounds: myResults.length, totalCost, totalPayout, roi, itm };
-  }, [myResults, enriched]);
-
-  // Percentages
-  const pct = useMemo(() => {
-    const n = totals.rounds || 1;
-    const totalPoints = results.reduce((s, r) => s + r.points_awarded, 0) || 1;
+    const points = myResults.reduce((s, r) => s + r.points_awarded, 0);
+    const money = myResults.reduce((s, r) => s + Number(r.payout), 0);
+    const net = myResults.reduce((s, r) => s + Number(r.net_amount), 0);
+    const rebuys = myResults.reduce((s, r) => s + r.rebuys, 0);
     return {
-      winRate: (totals.wins / n) * 100,
-      top3Rate: (totals.top3 / n) * 100,
-      itmRate: (totals.itm / n) * 100,
-      pointsShare: (totals.points / totalPoints) * 100,
+      rounds: n,
+      itmRate: n ? (itm / n) * 100 : 0,
+      winRate: n ? (wins / n) * 100 : 0,
+      wins,
+      points,
+      money,
+      net,
+      avgRebuy: n ? rebuys / n : 0,
     };
-  }, [totals, results]);
-
-  // Bust-level histogram
-  const bustLevelHist = useMemo(() => {
-    const counts: Record<number, number> = {};
-    myResults.forEach((r) => {
-      if (r.bust_level != null) counts[r.bust_level] = (counts[r.bust_level] ?? 0) + 1;
-    });
-    const max = Math.max(1, ...Object.keys(counts).map(Number));
-    return Array.from({ length: max }, (_, i) => ({ level: i + 1, count: counts[i + 1] ?? 0 }));
   }, [myResults]);
 
-  // Avg survival time
-  const avgSurvivalSec = useMemo(() => {
-    const xs = myResults.map((r) => r.bust_time_seconds).filter((x): x is number => x != null);
-    if (xs.length === 0) return null;
-    return xs.reduce((a, b) => a + b, 0) / xs.length;
-  }, [myResults]);
-  const groupAvgSurvivalSec = useMemo(() => {
-    const xs = results.map((r) => r.bust_time_seconds).filter((x): x is number => x != null);
-    if (xs.length === 0) return null;
-    return xs.reduce((a, b) => a + b, 0) / xs.length;
-  }, [results]);
-
-  const finishHistogram = useMemo(() => {
-    const counts: Record<number, number> = {};
-    myResults.forEach((r) => { counts[r.finish_position] = (counts[r.finish_position] ?? 0) + 1; });
-    const max = Math.max(1, ...Object.keys(counts).map(Number));
-    return Array.from({ length: max }, (_, i) => ({ position: i + 1, count: counts[i + 1] ?? 0 }));
-  }, [myResults]);
-
-  const profitCurve = useMemo(() => {
-    const sorted = [...enriched].sort((a, b) => +new Date(a.round?.played_at ?? 0) - +new Date(b.round?.played_at ?? 0));
-    let cum = 0;
-    return sorted.map((r) => {
-      cum += Number(r.net_amount);
-      return {
-        label: r.round ? format(new Date(r.round.played_at), "MMM d") : "",
-        points: r.points_awarded,
-        cum,
-      };
-    });
-  }, [enriched]);
-
-  // Rolling avg finish (last 5)
-  const rollingFinish = useMemo(() => {
-    const sorted = [...enriched].sort((a, b) => +new Date(a.round?.played_at ?? 0) - +new Date(b.round?.played_at ?? 0));
-    return sorted.map((r, i) => {
-      const window = sorted.slice(Math.max(0, i - 4), i + 1);
-      const avg = window.reduce((s, x) => s + x.finish_position, 0) / window.length;
-      return {
-        label: r.round ? format(new Date(r.round.played_at), "MMM d") : "",
-        finish: r.finish_position,
-        avg5: Number(avg.toFixed(2)),
-      };
-    });
-  }, [enriched]);
-
-  // Group averages for radar
-  const groupComp = useMemo(() => {
-    const playerIds = new Set(players.map((p) => p.id));
-    const perPlayer = new Map<string, { rounds: number; wins: number; top3: number; cost: number; payout: number; survival: number; surviveN: number; rebuys: number }>();
-    for (const pid of playerIds) perPlayer.set(pid, { rounds: 0, wins: 0, top3: 0, cost: 0, payout: 0, survival: 0, surviveN: 0, rebuys: 0 });
+  // Group average across other players (in same season scope)
+  const groupAvg = useMemo(() => {
+    const perPlayer = new Map<string, { rounds: number; wins: number; itm: number; points: number; money: number; rebuys: number }>();
     for (const r of results) {
-      const m = perPlayer.get(r.player_id); if (!m) continue;
-      const rd = rounds.find((x) => x.id === r.round_id);
-      m.rounds++;
-      if (r.finish_position === 1) m.wins++;
-      if (r.finish_position <= 3) m.top3++;
-      m.cost += Number(rd?.buy_in ?? 0) + r.rebuys * Number(rd?.rebuy_amount ?? 0);
-      m.payout += Number(r.payout);
-      m.rebuys += r.rebuys;
-      if (r.bust_time_seconds != null) { m.survival += r.bust_time_seconds; m.surviveN++; }
+      let a = perPlayer.get(r.player_id);
+      if (!a) { a = { rounds: 0, wins: 0, itm: 0, points: 0, money: 0, rebuys: 0 }; perPlayer.set(r.player_id, a); }
+      a.rounds += 1;
+      if (r.finish_position === 1) a.wins += 1;
+      if (Number(r.payout) > 0) a.itm += 1;
+      a.points += r.points_awarded;
+      a.money += Number(r.payout);
+      a.rebuys += r.rebuys;
     }
+    // exclude current player from average
+    perPlayer.delete(id);
     const arr = Array.from(perPlayer.values()).filter((m) => m.rounds > 0);
     if (arr.length === 0) return null;
+    const avg = (fn: (m: typeof arr[number]) => number) => arr.reduce((s, m) => s + fn(m), 0) / arr.length;
     return {
-      roi: arr.reduce((s, m) => s + (m.cost > 0 ? ((m.payout - m.cost) / m.cost) * 100 : 0), 0) / arr.length,
-      top3Rate: arr.reduce((s, m) => s + (m.top3 / m.rounds) * 100, 0) / arr.length,
-      winRate: arr.reduce((s, m) => s + (m.wins / m.rounds) * 100, 0) / arr.length,
-      survival: arr.reduce((s, m) => s + (m.surviveN > 0 ? m.survival / m.surviveN : 0), 0) / arr.length,
-      rebuysPerRound: arr.reduce((s, m) => s + m.rebuys / m.rounds, 0) / arr.length,
+      itmRate: avg((m) => (m.itm / m.rounds) * 100),
+      winRate: avg((m) => (m.wins / m.rounds) * 100),
+      rounds: avg((m) => m.rounds),
+      points: avg((m) => m.points),
+      money: avg((m) => m.money),
+      avgRebuy: avg((m) => m.rebuys / m.rounds),
     };
-  }, [results, rounds, players]);
+  }, [results, id]);
 
-  const radarData = useMemo(() => {
-    if (!groupComp) return [];
-    const norm = (mine: number, grp: number) => {
-      if (grp === 0) return mine > 0 ? 100 : 50;
-      return Math.max(0, Math.min(100, (mine / grp) * 50));
+  // ---- Radar axes ----
+  const axes = useMemo(() => computePlayerAxes(id, rounds, results), [id, rounds, results]);
+  const compareAxes = useMemo(() => {
+    // Average axes across all other players who have rounds
+    const others = players.filter((p) => p.id !== id);
+    const per = others.map((p) => computePlayerAxes(p.id, rounds, results));
+    const withData = per.filter((a) => a.survival + a.efficiency + a.aggression + a.potDominance + a.consistency > 0);
+    if (withData.length === 0) return undefined;
+    const avg = (k: keyof typeof axes) => withData.reduce((s, a) => s + a[k], 0) / withData.length;
+    return {
+      survival: avg("survival"),
+      efficiency: avg("efficiency"),
+      aggression: avg("aggression"),
+      potDominance: avg("potDominance"),
+      consistency: avg("consistency"),
     };
-    return [
-      { axis: "Win %", you: norm(pct.winRate, groupComp.winRate), avg: 50 },
-      { axis: "Top-3 %", you: norm(pct.top3Rate, groupComp.top3Rate), avg: 50 },
-      { axis: "ROI %", you: norm(totals.roi, groupComp.roi || 1), avg: 50 },
-      { axis: "Survival", you: norm(avgSurvivalSec ?? 0, groupComp.survival || 1), avg: 50 },
-      { axis: "Aggression", you: norm(totals.rebuys / (totals.rounds || 1), groupComp.rebuysPerRound || 0.001), avg: 50 },
-    ];
-  }, [pct, totals, avgSurvivalSec, groupComp]);
-
-  // Season history for this player (snapshot first, fallback to live compute per season)
-  const seasonHistory = useMemo(() => {
-    return seasons.map((s) => {
-      const snap = allStandings.find((st) => st.season_id === s.id && st.player_id === id);
-      let row: { rank: number | null; points: number; wins: number; rounds_played: number; net: number };
-      if (snap) {
-        row = { rank: snap.rank, points: snap.points, wins: snap.wins, rounds_played: snap.rounds_played, net: Number(snap.net) };
-      } else {
-        // Compute live for this season's rounds
-        const roundIds = new Set(rounds.filter((r) => r.season_id === s.id).map((r) => r.id));
-        const allInSeason = results.filter((r) => roundIds.has(r.round_id));
-        const perPlayer = new Map<string, { player_id: string; points: number; wins: number; net: number; rounds_played: number }>();
-        for (const r of allInSeason) {
-          let a = perPlayer.get(r.player_id);
-          if (!a) { a = { player_id: r.player_id, points: 0, wins: 0, net: 0, rounds_played: 0 }; perPlayer.set(r.player_id, a); }
-          a.points += r.points_awarded;
-          a.rounds_played += 1;
-          a.net += Number(r.net_amount);
-          if (r.finish_position === 1) a.wins += 1;
-        }
-        const sorted = Array.from(perPlayer.values()).sort((a, b) => b.points - a.points || b.wins - a.wins || b.net - a.net);
-        const me = perPlayer.get(id);
-        const rank = me ? sorted.findIndex((x) => x.player_id === id) + 1 : null;
-        row = { rank, points: me?.points ?? 0, wins: me?.wins ?? 0, rounds_played: me?.rounds_played ?? 0, net: me?.net ?? 0 };
-      }
-      const seasonBadges = playerBadges
-        .filter((pb) => pb.player_id === id && pb.season_id === s.id)
-        .map((pb) => badgeById.get(pb.badge_id))
-        .filter((b): b is NonNullable<typeof b> => !!b);
-      return { season: s, ...row, badges: seasonBadges };
-    }).filter((x) => x.rounds_played > 0 || x.rank != null);
-  }, [seasons, allStandings, rounds, results, id, playerBadges, badgeById]);
-
+  }, [players, id, rounds, results, axes]);
 
   if (!player) {
-    return <div className="p-8"><Link to="/players" className="text-primary">← Back</Link><p className="mt-4">Player not found.</p></div>;
+    return (
+      <div className="p-8">
+        <Link to="/players" className="text-primary">← Back</Link>
+        <p className="mt-4">Player not found.</p>
+      </div>
+    );
   }
+
+  const seasonLabel =
+    seasonFilter === "__all"
+      ? "All-time"
+      : seasonFilter === "__active"
+        ? activeSeason?.name ?? "Active"
+        : seasons.find((s) => s.id === seasonFilter)?.name ?? "Season";
 
   return (
     <div className="p-4 md:p-8 max-w-[1500px] mx-auto space-y-6">
@@ -219,55 +166,88 @@ function PlayerDetail() {
         <Link to="/players" className="text-sm text-muted-foreground hover:text-primary">← All players</Link>
       </div>
 
-      <Card className="felt">
+      {/* HEADER */}
+      <Card className="felt overflow-hidden">
         <CardContent className="p-6 flex flex-wrap items-center gap-5">
-          <PlayerAvatar player={player} size="xl" className="rounded-2xl" />
+          <PlayerAvatar player={player} size="xl" className="rounded-2xl ring-2 ring-primary/40 shadow-[0_0_24px_color-mix(in_oklch,var(--primary)_40%,transparent)]" />
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2 flex-wrap">
               <span>{player.name}</span>
-              {myBadges.length > 0 && (
-                <span className="inline-flex items-center gap-1">
-                  {myBadges.map((pb) => {
-                    const b = badgeById.get(pb.badge_id);
-                    if (!b) return null;
-                    const s = pb.season_id ? seasonById.get(pb.season_id) : null;
-                    const tip = pb.note ?? (s ? `${b.name} · ${s.name}` : b.description ?? undefined);
-                    return (
-                      <span key={pb.id} className="inline-flex items-center gap-0.5 group/badge relative">
-                        <BadgeChip badge={b} tooltip={tip ?? undefined} size="sm" />
-                        {unlocked && (
-                          <button
-                            onClick={async () => {
-                              const pw = getAdminPassword();
-                              if (!pw) return;
-                              if (!confirm(`Revoke "${b.name}"?`)) return;
-                              try {
-                                await revokeFn({ data: { password: pw, id: pb.id } });
-                                queryClient.invalidateQueries({ queryKey: ["player_badges"] });
-                                toast.success("Badge revoked");
-                              } catch (e) { toast.error((e as Error).message); }
-                            }}
-                            className="opacity-0 group-hover/badge:opacity-100 transition-opacity text-destructive"
-                            title="Revoke badge"
-                          ><X className="size-3" /></button>
-                        )}
-                      </span>
-                    );
-                  })}
-                </span>
-              )}
+              {!player.active && <Badge variant="secondary">Inactive</Badge>}
             </h1>
-            {player.nickname && <p className="text-sm text-muted-foreground">{player.nickname}</p>}
+            {player.nickname && <p className="text-sm text-muted-foreground">"{player.nickname}"</p>}
+            {myBadges.length > 0 && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {myBadges.map((pb) => {
+                  const b = badgeById.get(pb.badge_id);
+                  if (!b) return null;
+                  const s = pb.season_id ? seasonById.get(pb.season_id) : null;
+                  const tip = pb.note ?? (s ? `${b.name} · ${s.name}` : b.description ?? undefined);
+                  return (
+                    <span key={pb.id} className="inline-flex items-center gap-0.5 group/badge relative">
+                      <BadgeChip badge={b} tooltip={tip ?? undefined} size="sm" />
+                      {unlocked && (
+                        <button
+                          onClick={async () => {
+                            const pw = getAdminPassword();
+                            if (!pw) return;
+                            if (!confirm(`Revoke "${b.name}"?`)) return;
+                            try {
+                              await revokeFn({ data: { password: pw, id: pb.id } });
+                              queryClient.invalidateQueries({ queryKey: ["player_badges"] });
+                              toast.success("Badge revoked");
+                            } catch (e) { toast.error((e as Error).message); }
+                          }}
+                          className="opacity-0 group-hover/badge:opacity-100 transition-opacity text-destructive"
+                          title="Revoke badge"
+                        ><X className="size-3" /></button>
+                      )}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
           </div>
-          {!player.active && <Badge variant="secondary">Inactive</Badge>}
-          {unlocked && (
-            <Button variant="outline" size="sm" onClick={() => setGrantOpen(true)}>
-              <Plus className="size-4 mr-1" /> Grant badge
-            </Button>
-          )}
+          <div className="flex flex-col gap-2 items-end">
+            <Select value={seasonFilter} onValueChange={setSeasonFilter}>
+              <SelectTrigger className="w-[220px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all">All-time</SelectItem>
+                {activeSeason && <SelectItem value="__active">Active: {activeSeason.name}</SelectItem>}
+                {seasons.filter((s) => s.ended_at).map((s) => (
+                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {unlocked && (
+              <Button variant="outline" size="sm" onClick={() => setGrantOpen(true)}>
+                <Plus className="size-4 mr-1" /> Grant badge
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
 
+      <div className="text-xs uppercase tracking-widest text-muted-foreground">Showing: <span className="text-primary font-semibold">{seasonLabel}</span></div>
+
+      {/* KPI GRID */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <KpiCard label="ITM Rate" value={`${my.itmRate.toFixed(1)}%`} raw={my.itmRate} avg={groupAvg?.itmRate} betterWhen="higher" />
+        <KpiCard label={`Win Rate (${my.wins})`} value={`${my.winRate.toFixed(1)}%`} raw={my.winRate} avg={groupAvg?.winRate} betterWhen="higher" />
+        <KpiCard label="Rounds" value={my.rounds} raw={my.rounds} avg={groupAvg?.rounds} betterWhen="higher" />
+        <KpiCard label="Points" value={my.points} raw={my.points} avg={groupAvg?.points} betterWhen="higher" />
+        <KpiCard label="Money Won" value={`${currency}${Math.round(my.money).toLocaleString()}`} raw={my.money} avg={groupAvg?.money} betterWhen="higher" />
+        <KpiCard label="Avg Re-buy" value={my.avgRebuy.toFixed(2)} raw={my.avgRebuy} avg={groupAvg?.avgRebuy} betterWhen="lower" />
+      </div>
+
+      {/* RADAR */}
+      {my.rounds === 0 ? (
+        <Card><CardContent className="p-8 text-center text-muted-foreground">No rounds played in this scope yet.</CardContent></Card>
+      ) : (
+        <PlayerRadar axes={axes} compareAxes={compareAxes} />
+      )}
+
+      {/* GRANT DIALOG */}
       {grantOpen && unlocked && (
         <Dialog open={grantOpen} onOpenChange={(o) => !o && setGrantOpen(false)}>
           <DialogContent>
@@ -280,7 +260,7 @@ function PlayerDetail() {
                     const pw = getAdminPassword();
                     if (!pw) return;
                     try {
-                      await grantFn({ data: { password: pw, player_id: player.id, badge_id: b.id, season_id: null, note: null } });
+                      await grantFn({ data: { password: pw, player_id: player.id, badge_id: b.id, season_id: effectiveSeasonId ?? null, note: null } });
                       queryClient.invalidateQueries({ queryKey: ["player_badges"] });
                       toast.success(`Granted "${b.name}"`);
                       setGrantOpen(false);
@@ -300,191 +280,9 @@ function PlayerDetail() {
         </Dialog>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-        <Stat label="Total Points" value={totals.points} />
-        <Stat label="Wins" value={totals.wins} />
-        <Stat label="Top-3" value={totals.top3} />
-        <Stat label="Rounds" value={totals.rounds} />
-        <Stat label="Avg Finish" value={totals.avgFinish} />
-        <Stat label="Re-buys" value={totals.rebuys} />
-        <Stat label="Net" value={`${currency}${totals.net.toLocaleString()}`} positive={totals.net >= 0} negative={totals.net < 0} />
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <PctStat label="Win rate" value={pct.winRate} />
-        <PctStat label="Top-3 rate" value={pct.top3Rate} />
-        <PctStat label="ITM rate" value={pct.itmRate} />
-        <PctStat label="ROI" value={totals.roi} signed />
-        <PctStat label="Points share" value={pct.pointsShare} />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader><CardTitle className="text-base">Profit over time</CardTitle></CardHeader>
-          <CardContent>
-            <div className="h-[240px]">
-              {profitCurve.length === 0 ? <Empty/> : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={profitCurve}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
-                    <YAxis tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
-                    <Tooltip contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }} />
-                    <Line type="monotone" dataKey="cum" stroke="var(--primary)" strokeWidth={2} dot={{ r: 3 }} name="Net" />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle className="text-base">Finish position (rolling avg last 5)</CardTitle></CardHeader>
-          <CardContent>
-            <div className="h-[240px]">
-              {rollingFinish.length === 0 ? <Empty/> : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={rollingFinish}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
-                    <YAxis reversed allowDecimals={false} tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
-                    <Tooltip contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }} />
-                    <Line type="monotone" dataKey="finish" stroke="var(--muted-foreground)" strokeWidth={1} dot={false} name="Finish" />
-                    <Line type="monotone" dataKey="avg5" stroke="var(--primary)" strokeWidth={2} dot={{ r: 3 }} name="Rolling avg" />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader><CardTitle className="text-base">Finish position frequency</CardTitle></CardHeader>
-          <CardContent>
-            <div className="h-[220px]">
-              {finishHistogram.length === 0 ? <Empty/> : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={finishHistogram}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis dataKey="position" tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
-                    <YAxis tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" allowDecimals={false} />
-                    <Tooltip contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }} />
-                    <Bar dataKey="count" fill="var(--primary)" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Bust blind-level distribution</CardTitle>
-            {avgSurvivalSec != null && groupAvgSurvivalSec != null && (
-              <p className="text-xs text-muted-foreground">
-                Survives ~<strong>{Math.round(avgSurvivalSec / 60)}m</strong> · group avg {Math.round(groupAvgSurvivalSec / 60)}m
-              </p>
-            )}
-          </CardHeader>
-          <CardContent>
-            <div className="h-[220px]">
-              {bustLevelHist.every((x) => x.count === 0) ? <Empty/> : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={bustLevelHist}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis dataKey="level" tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
-                    <YAxis tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" allowDecimals={false} />
-                    <Tooltip contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }} />
-                    <Bar dataKey="count" fill="var(--chart-3)" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle className="text-base">vs group average</CardTitle></CardHeader>
-          <CardContent>
-            <div className="h-[220px]">
-              {radarData.length === 0 || !groupComp ? <Empty/> : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <RadarChart data={radarData}>
-                    <PolarGrid stroke="var(--border)" />
-                    <PolarAngleAxis dataKey="axis" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} />
-                    <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
-                    <Radar name="Group avg" dataKey="avg" stroke="var(--muted-foreground)" fill="var(--muted-foreground)" fillOpacity={0.15} />
-                    <Radar name="You" dataKey="you" stroke="var(--primary)" fill="var(--primary)" fillOpacity={0.35} />
-                  </RadarChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
+      {/* RECENT ROUNDS */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Season history</CardTitle>
-          <p className="text-xs text-muted-foreground">Performance across every season this player participated in.</p>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="text-xs text-muted-foreground">
-                <tr className="border-b border-border">
-                  <th className="text-left px-4 py-2">Season</th>
-                  <th className="text-left px-2 py-2">Status</th>
-                  <th className="text-right px-2 py-2">Rank</th>
-                  <th className="text-right px-2 py-2">Points</th>
-                  <th className="text-right px-2 py-2">Wins</th>
-                  <th className="text-right px-2 py-2">Rounds</th>
-                  <th className="text-right px-2 py-2">Net</th>
-                  <th className="text-left px-4 py-2">Badges</th>
-                </tr>
-              </thead>
-              <tbody>
-                {seasonHistory.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">No season data yet</td></tr>}
-                {seasonHistory.map((h) => {
-                  const medal = h.rank === 1 ? "bg-warning/20 text-warning" : h.rank === 2 ? "bg-info/20 text-info" : h.rank === 3 ? "bg-accent text-accent-foreground" : "bg-secondary text-muted-foreground";
-                  const isActive = !h.season.ended_at;
-                  return (
-                    <tr key={h.season.id} className="border-b border-border last:border-0 hover:bg-secondary/40">
-                      <td className="px-4 py-2 font-medium">
-                        <Link to="/seasons/$id" params={{ id: h.season.id }} className="hover:text-primary">{h.season.name}</Link>
-                      </td>
-                      <td className="px-2 py-2">
-                        <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${isActive ? "bg-success/15 text-success" : "bg-secondary text-muted-foreground"}`}>
-                          {isActive ? "Active" : "Closed"}
-                        </span>
-                      </td>
-                      <td className="px-2 py-2 text-right">
-                        {h.rank ? <span className={`inline-grid place-items-center size-6 rounded text-xs font-bold ${medal}`}>{h.rank}</span> : "—"}
-                      </td>
-                      <td className="px-2 py-2 text-right font-semibold tabular-nums">{h.points}</td>
-                      <td className="px-2 py-2 text-right tabular-nums">{h.wins}</td>
-                      <td className="px-2 py-2 text-right text-muted-foreground tabular-nums">{h.rounds_played}</td>
-                      <td className={`px-2 py-2 text-right font-mono ${h.net >= 0 ? "text-success" : "text-destructive"}`}>
-                        {h.net >= 0 ? "+" : ""}{h.net.toLocaleString()}
-                      </td>
-                      <td className="px-4 py-2">
-                        <div className="flex flex-wrap gap-1">
-                          {h.badges.map((b, i) => <BadgeChip key={i} badge={b} tooltip={b.description ?? undefined} size="xs" />)}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-
-        <CardHeader><CardTitle className="text-base">Round history</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">Recent rounds</CardTitle></CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -494,23 +292,37 @@ function PlayerDetail() {
                   <th className="text-left px-2 py-2">Round</th>
                   <th className="text-right px-2 py-2">Finish</th>
                   <th className="text-right px-2 py-2">Pts</th>
-                  <th className="text-right px-2 py-2">Re-buys</th>
+                  <th className="text-right px-2 py-2">Payout</th>
                   <th className="text-right px-2 py-2">Net</th>
+                  <th className="text-right px-2 py-2">Re-buys</th>
+                  <th className="text-right px-2 py-2">Bust BB</th>
                   <th className="text-right px-4 py-2"></th>
                 </tr>
               </thead>
               <tbody>
-                {enriched.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">No rounds yet</td></tr>}
-                {enriched.map((r) => (
+                {enriched.length === 0 && <tr><td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">No rounds yet</td></tr>}
+                {enriched.slice(0, 20).map((r) => (
                   <tr key={r.id} className="border-b border-border last:border-0 hover:bg-secondary/40">
                     <td className="px-4 py-2 text-muted-foreground">{r.round ? format(new Date(r.round.played_at), "MMM d, yyyy") : "—"}</td>
-                    <td className="px-2 py-2 font-medium">{r.round?.name}</td>
-                    <td className="px-2 py-2 text-right">#{r.finish_position}</td>
-                    <td className="px-2 py-2 text-right font-semibold">{r.points_awarded}</td>
-                    <td className="px-2 py-2 text-right text-muted-foreground">{r.rebuys}</td>
+                    <td className="px-2 py-2 font-medium">
+                      {r.round && (
+                        <Link to="/rounds/$id" params={{ id: r.round.id }} className="hover:text-primary">
+                          {r.round.name}
+                        </Link>
+                      )}
+                    </td>
+                    <td className="px-2 py-2 text-right">
+                      <span className={`inline-grid place-items-center size-6 rounded text-xs font-bold ${r.finish_position === 1 ? "bg-warning/20 text-warning" : r.finish_position <= 3 ? "bg-info/15 text-info" : "bg-secondary text-muted-foreground"}`}>
+                        {r.finish_position}
+                      </span>
+                    </td>
+                    <td className="px-2 py-2 text-right font-semibold tabular-nums">{r.points_awarded}</td>
+                    <td className="px-2 py-2 text-right tabular-nums">{currency}{Math.round(Number(r.payout)).toLocaleString()}</td>
                     <td className={`px-2 py-2 text-right font-mono ${Number(r.net_amount) >= 0 ? "text-success" : "text-destructive"}`}>
                       {Number(r.net_amount) >= 0 ? "+" : ""}{Number(r.net_amount).toLocaleString()}
                     </td>
+                    <td className="px-2 py-2 text-right text-muted-foreground tabular-nums">{r.rebuys}</td>
+                    <td className="px-2 py-2 text-right text-muted-foreground tabular-nums">{r.bust_bb ?? "—"}</td>
                     <td className="px-4 py-2 text-right">
                       {r.round && <Link to="/rounds/$id" params={{ id: r.round.id }} className="text-primary text-xs hover:underline">View →</Link>}
                     </td>
@@ -525,30 +337,36 @@ function PlayerDetail() {
   );
 }
 
-function Stat({ label, value, positive, negative }: { label: string; value: string | number; positive?: boolean; negative?: boolean }) {
+function KpiCard({
+  label, value, raw, avg, betterWhen,
+}: {
+  label: string;
+  value: string | number;
+  raw: number;
+  avg: number | undefined;
+  betterWhen: "higher" | "lower";
+}) {
+  const hasAvg = avg != null && avg !== 0;
+  const delta = hasAvg ? ((raw - avg) / Math.abs(avg)) * 100 : null;
+  const isBetter = delta == null ? null : betterWhen === "higher" ? delta >= 0 : delta <= 0;
+  const Icon = delta == null ? Minus : delta > 0 ? TrendingUp : delta < 0 ? TrendingDown : Minus;
+  const color = isBetter == null ? "text-muted-foreground" : isBetter ? "text-success" : "text-destructive";
   return (
     <Card>
       <CardContent className="p-3">
-        <div className={`text-xl font-bold tabular-nums ${positive ? "text-success" : negative ? "text-destructive" : ""}`}>{value}</div>
-        <div className="text-[10px] uppercase tracking-wide text-muted-foreground mt-1">{label}</div>
+        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
+        <div className="text-xl md:text-2xl font-bold tabular-nums mt-1">{value}</div>
+        <div className={`flex items-center gap-1 mt-1 text-[11px] ${color}`}>
+          <Icon className="size-3" />
+          {delta == null ? (
+            <span>—</span>
+          ) : (
+            <span className="tabular-nums font-semibold">
+              {delta > 0 ? "+" : ""}{delta.toFixed(1)}% <span className="text-muted-foreground font-normal">vs avg</span>
+            </span>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
-}
-
-function PctStat({ label, value, signed }: { label: string; value: number; signed?: boolean }) {
-  const cls = signed ? (value >= 0 ? "text-success" : "text-destructive") : "";
-  const sign = signed && value > 0 ? "+" : "";
-  return (
-    <Card>
-      <CardContent className="p-3">
-        <div className={`text-xl font-bold tabular-nums ${cls}`}>{sign}{value.toFixed(1)}%</div>
-        <div className="text-[10px] uppercase tracking-wide text-muted-foreground mt-1">{label}</div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function Empty() {
-  return <div className="h-full grid place-items-center text-sm text-muted-foreground">No data</div>;
 }
