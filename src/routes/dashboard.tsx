@@ -12,10 +12,14 @@ import {
 import { format } from "date-fns";
 import { Trophy, Flame, Snowflake, Coins, RotateCcw, TrendingUp, Users, Layers } from "lucide-react";
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute("/dashboard")({
   head: () => ({
     meta: [
-      { title: "Dashboard — PPCH" },
+      { title: "Dashboard — PPCH Poker Club" },
+      { property: "og:title", content: "Dashboard — PPCH Poker Club" },
+      { property: "og:description", content: "Live leaderboard, season stats and player form for PPCH poker nights." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
       { name: "description", content: "Game and player statistics for PPCH poker nights." },
     ],
   }),
