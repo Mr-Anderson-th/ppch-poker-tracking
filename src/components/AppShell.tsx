@@ -2,10 +2,9 @@ import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { LayoutDashboard, Timer, Users, ListOrdered, Lock, Unlock, Spade, Trophy } from "lucide-react";
 import { useAdminUnlocked, setAdminPassword } from "@/lib/admin-store";
 import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/ThemeToggle";
 
 const nav = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/clock", label: "Clock", icon: Timer },
   { to: "/players", label: "Players", icon: Users },
   { to: "/rounds", label: "Rounds", icon: ListOrdered },
@@ -15,6 +14,8 @@ const nav = [
 export function AppShell() {
   const unlocked = useAdminUnlocked();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  if (pathname === "/") return <Outlet />;
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -27,11 +28,10 @@ export function AppShell() {
             <div className="font-display font-bold text-[15px] leading-none">PPCH</div>
             <div className="text-[11px] text-muted-foreground mt-1 truncate">Pakree Poker Clue House</div>
           </div>
-          <ThemeToggle />
         </div>
         <nav className="px-3 py-2 space-y-1 flex-1">
           {nav.map((n) => {
-            const active = n.exact ? pathname === n.to : pathname.startsWith(n.to);
+            const active = pathname.startsWith(n.to);
             return (
               <Link
                 key={n.to}
@@ -84,15 +84,14 @@ export function AppShell() {
             <span className="font-display font-bold text-sm">PPCH</span>
           </Link>
           <div className="flex items-center gap-1">
-            <ThemeToggle />
-            <Link to="/admin" className="text-xs text-muted-foreground p-2">
+              <Link to="/admin" className="text-xs text-muted-foreground p-2">
               {unlocked ? <Unlock className="size-4" /> : <Lock className="size-4" />}
             </Link>
           </div>
         </div>
         <nav className="flex overflow-x-auto px-2 pb-2 gap-1">
           {nav.map((n) => {
-            const active = n.exact ? pathname === n.to : pathname.startsWith(n.to);
+            const active = pathname.startsWith(n.to);
             return (
               <Link
                 key={n.to}

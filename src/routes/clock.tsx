@@ -11,6 +11,8 @@ import { usePlayers, useSettings, useRounds, type Player } from "@/lib/queries";
 import { buildBlindLevels, PAYOUT_PRESETS, distributePot, type BlindMode } from "@/lib/points";
 import { Checkbox } from "@/components/ui/checkbox";
 import { saveRound } from "@/lib/api/admin.functions";
+import { TournamentResults } from "@/components/TournamentResults";
+
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -324,40 +326,39 @@ function ClockPage() {
         </DialogContent>
       </Dialog>
 
-      {/* End dialog */}
+      {/* End dialog — celebration + full summary */}
       <Dialog open={endDialog} onOpenChange={setEndDialog}>
-        <DialogContent>
-          <DialogHeader>
+        <DialogContent className="max-w-3xl overflow-hidden">
+          <DialogHeader className="sr-only">
             <DialogTitle>Tournament finished</DialogTitle>
           </DialogHeader>
-          <div className="space-y-2 text-sm">
-            <p className="text-muted-foreground">Final results:</p>
-            <ol className="space-y-1">
-              {[...seats]
-                .sort((a, b) => {
-                  const aw = a.out ? 0 : 1;
-                  const bw = b.out ? 0 : 1;
-                  if (aw !== bw) return bw - aw;
-                  return (a.bustPosition ?? 99) - (b.bustPosition ?? 99);
-                })
-                .map((s, i) => {
-                  const pos = !s.out ? 1 : s.bustPosition ?? i + 1;
-                  const payout = payouts[pos - 1] ?? 0;
-                  return (
-                    <li key={s.player.id} className="flex justify-between items-center px-3 py-1.5 rounded bg-secondary/50">
-                      <span><strong>#{pos}</strong> {s.player.name}</span>
-                      <span className="text-muted-foreground text-xs">{payout > 0 ? `+${payout}` : ""}</span>
-                    </li>
-                  );
-                })}
-            </ol>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEndDialog(false)}>Keep playing</Button>
-            <Button onClick={finalizeAndSave}>Save round</Button>
-          </DialogFooter>
+          <TournamentResults
+            rows={[...seats]
+              .map((s, i) => {
+                const position = !s.out ? 1 : s.bustPosition ?? i + 1;
+                return {
+                  player: s.player,
+                  position,
+                  payout: payouts[position - 1] ?? 0,
+                  rebuys: s.rebuys,
+                  buyInCost: buyIn + s.rebuys * rebuy,
+                  bustSb: s.bustSb,
+                  bustBb: s.bustBb,
+                  bustTimeSeconds: s.bustTimeSeconds,
+                };
+              })
+              .sort((a, b) => a.position - b.position)}
+            currency={settings?.currency ?? "฿"}
+            pot={pot}
+            rake={rakeAmount}
+            totalRebuys={totalRebuys}
+            durationSeconds={elapsedTotal}
+            onKeepPlaying={() => setEndDialog(false)}
+            onSave={finalizeAndSave}
+          />
         </DialogContent>
       </Dialog>
+
     </div>
   );
 }

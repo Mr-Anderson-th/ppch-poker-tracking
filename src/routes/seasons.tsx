@@ -31,7 +31,7 @@ function SeasonsPage() {
               <div className="text-xl font-bold mt-1">{active.name}</div>
               <div className="text-xs text-muted-foreground mt-1">Started {format(new Date(active.started_at), "MMM d, yyyy")}</div>
             </div>
-            <Link to="/" className="text-primary text-sm hover:underline">View live leaderboard →</Link>
+            <Link to="/dashboard" className="text-primary text-sm hover:underline">View live leaderboard →</Link>
           </CardContent>
         </Card>
       )}
