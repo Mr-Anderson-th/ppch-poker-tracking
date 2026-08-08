@@ -11,6 +11,8 @@ import { usePlayers, useSettings, useRounds, type Player } from "@/lib/queries";
 import { buildBlindLevels, PAYOUT_PRESETS, distributePot, type BlindMode } from "@/lib/points";
 import { Checkbox } from "@/components/ui/checkbox";
 import { saveRound } from "@/lib/api/admin.functions";
+import { TournamentResults } from "@/components/TournamentResults";
+
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
