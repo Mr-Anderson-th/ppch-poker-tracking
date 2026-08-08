@@ -1,28 +1,35 @@
-## Problem
+# Landing page + full redesign + end-of-game celebration
 
-Clicking "View performance" on `/players` changes the URL to `/players/$id` but the page keeps showing the players list. Playwright confirmed: `page.url === /players/{id}`, but rendered content = players list.
+## 1. Landing page at `/`
 
-**Root cause:** With TanStack's flat file routing, `src/routes/players.tsx` becomes the **layout** for any `players.*` child route (like `players.$id.tsx`). But `players.tsx` currently renders the list UI directly with no `<Outlet />`, so `/players/$id` matches — the child just has nowhere to render.
+New single-screen landing (`src/routes/index.tsx`) in the reference style:
+- Soft cream background, big rounded cards, black hero panel, yellow/red accents.
+- Hero: club name "PPCH Poker", short tagline, and a large **Play** button that goes to `/dashboard`.
+- A few live stat tiles pulled from real data (players count, rounds played, current season leader, total pot) laid out in a bento grid like the reference.
+- Secondary links: Tournament Clock, Leaderboard.
+- Own `head()` metadata (title, description, og tags).
 
-## Fix
+The current dashboard moves to `src/routes/dashboard.tsx` unchanged in logic; nav and any internal links update to `/dashboard`.
 
-Split the current `players.tsx` into a layout + index leaf:
+## 2. Full design refresh (light only)
 
-1. **Create `src/routes/players.index.tsx`** — move the entire current list UI (`PlayersPage`, `Mini`, all imports, `createFileRoute("/players/")`) into this new file. This becomes the `/players` route.
+- Rewrite the token palette in `src/styles.css`: cream/off-white background, near-black surface cards, saffron yellow primary accent, coral red for emphasis, soft grey borders, larger radius (rounded-3xl feel).
+- Remove dark mode: drop the `.dark` token block, delete `ThemeToggle` from the shell, and remove the theme bootstrapping in `src/lib/theme.ts` usage. All components keep semantic tokens, so no hardcoded colors.
+- `AppShell`: convert the top nav into the reference's icon rail + rounded pill header, with a rounded search-less header bar and avatar chip.
+- Card styling pass across dashboard, players, rounds, seasons, admin: bigger radius, softer shadows, black "feature" cards for headline stats, yellow progress accents.
 
-2. **Rewrite `src/routes/players.tsx`** as a pure layout:
-   ```tsx
-   import { createFileRoute, Outlet } from "@tanstack/react-router";
-   export const Route = createFileRoute("/players")({
-     component: () => <Outlet />,
-   });
-   ```
-   Drop the `head` from here (index leaf will own the "Players — PPCH" title).
+## 3. Clock end-of-game celebration
 
-3. **No changes needed** to `players.$id.tsx` — it already declares `/players/$id` and will now render inside the layout's `<Outlet />`.
+When the tournament finishes on `/clock`, replace the current plain "Tournament finished" dialog with one full-screen results modal that contains:
+- Confetti burst + animated 1-2-3 podium with avatars, names, and payout for each of the top three.
+- Below it, the full summary table for every player: finish position, points awarded, payout, re-buys, net, bust blind level.
+- Round totals row: total pot, rake, total re-buys, duration.
+- Actions unchanged: Save round (existing `saveRound` server fn) and close.
 
-`routeTree.gen.ts` regenerates automatically.
+Nothing about scoring, payouts, or the save flow changes — this is presentation plus the podium/confetti layer.
 
-## Verification
+## Technical notes
 
-Playwright: navigate to `/players`, click "View performance" on the first card, confirm the URL updates AND the detail page (avatar header, KPI grid, radar chart, recent rounds table) actually renders.
+- New route file `src/routes/dashboard.tsx`; `src/routes/index.tsx` becomes the landing. Keep `head()` metadata unique per route.
+- Confetti via a small CSS/`motion`-free animated element rather than a new heavy dependency, unless `canvas-confetti` is already present.
+- Podium data derives from the existing finished-seat ordering already computed in `clock.tsx`.
