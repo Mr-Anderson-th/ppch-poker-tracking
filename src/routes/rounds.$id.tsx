@@ -53,7 +53,7 @@ function RoundDetail() {
   if (isLoading) {
     return (
       <div className="p-8 max-w-[1500px] mx-auto space-y-4">
-        <Link to="/rounds" className="text-sm text-muted-foreground hover:text-primary">← All rounds</Link>
+        <Link to="/rounds" search={{ season: "", player: "", q: "", from: "", to: "" }} className="text-sm text-muted-foreground hover:text-primary">← All rounds</Link>
         <div className="space-y-3 animate-pulse">
           <div className="h-24 rounded-xl bg-secondary/60" />
           <div className="h-72 rounded-xl bg-secondary/40" />
@@ -65,11 +65,11 @@ function RoundDetail() {
   if (error || !round) {
     return (
       <div className="p-8 max-w-md mx-auto text-center space-y-4">
-        <Link to="/rounds" className="text-sm text-muted-foreground hover:text-primary">← All rounds</Link>
+        <Link to="/rounds" search={{ season: "", player: "", q: "", from: "", to: "" }} className="text-sm text-muted-foreground hover:text-primary">← All rounds</Link>
         <Card><CardContent className="p-8 space-y-2">
           <h2 className="text-lg font-bold">Round not found</h2>
           <p className="text-sm text-muted-foreground">{error ? (error as Error).message : "This round may have been deleted."}</p>
-          <Button asChild variant="outline" size="sm" className="mt-2"><Link to="/rounds">Back to rounds</Link></Button>
+          <Button asChild variant="outline" size="sm" className="mt-2"><Link to="/rounds" search={{ season: "", player: "", q: "", from: "", to: "" }}>Back to rounds</Link></Button>
         </CardContent></Card>
       </div>
     );
@@ -131,7 +131,7 @@ function RoundDetail() {
       queryClient.invalidateQueries({ queryKey: ["round", round.id] });
       queryClient.invalidateQueries({ queryKey: ["round-results", round.id] });
       queryClient.invalidateQueries({ queryKey: ["season_standings"] });
-      navigate({ to: "/rounds" });
+      navigate({ to: "/rounds", search: { season: "", player: "", q: "", from: "", to: "" } });
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -146,7 +146,7 @@ function RoundDetail() {
   return (
     <div className="p-4 md:p-8 max-w-[1500px] mx-auto space-y-6">
       <div className="flex items-center justify-between">
-        <Link to="/rounds" className="text-sm text-muted-foreground hover:text-primary">← All rounds</Link>
+        <Link to="/rounds" search={{ season: "", player: "", q: "", from: "", to: "" }} className="text-sm text-muted-foreground hover:text-primary">← All rounds</Link>
         {unlocked && (
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>

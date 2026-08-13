@@ -1,11 +1,13 @@
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Timer, Users, ListOrdered, Lock, Unlock, Spade, Trophy } from "lucide-react";
+import { LayoutDashboard, Timer, Users, ListOrdered, Lock, Unlock, Spade, Trophy, Crown } from "lucide-react";
 import { useAdminUnlocked, setAdminPassword } from "@/lib/admin-store";
 import { Button } from "@/components/ui/button";
 
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/leaderboard", label: "Leaderboard", icon: Crown },
   { to: "/clock", label: "Clock", icon: Timer },
+
   { to: "/players", label: "Players", icon: Users },
   { to: "/rounds", label: "Rounds", icon: ListOrdered },
   { to: "/seasons", label: "Seasons", icon: Trophy },
