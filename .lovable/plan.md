@@ -30,3 +30,7 @@ Table columns: `#`, Player, Pts, Wins, Buy-in (number of rounds entered), Re-buy
 - Buy-in count = number of `round_results` rows for that player in the selected season; re-buys = sum of `rebuys`.
 - Charts use Recharts (already installed) with semantic tokens from `src/styles.css`; no hardcoded colors.
 - `/leaderboard` gets its own `head()` metadata.
+
+## Pre-existing build fix (included)
+
+Typecheck currently fails: `<Link to="/rounds">` in `dashboard.tsx` and `rounds.$id.tsx` (and one `navigate({ to: "/rounds" })`) omit the now-required `search` param from the rounds filter route. These get `search={{}}` / `search: {}` added as part of this work so the build is green.
