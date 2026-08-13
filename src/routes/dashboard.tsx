@@ -422,7 +422,7 @@ function Dashboard() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Recent Rounds</CardTitle>
-          <Link to="/rounds" className="text-sm text-primary hover:underline">View all →</Link>
+          <Link to="/rounds" search={{ season: "", player: "", q: "", from: "", to: "" }} className="text-sm text-primary hover:underline">View all →</Link>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
