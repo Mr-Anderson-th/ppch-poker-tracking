@@ -106,15 +106,39 @@ type AxisResult = {
   bust_time_seconds: number | null;
   payout: number;
   points_awarded: number;
+  net_amount?: number;
 };
 
 export type PlayerAxes = {
   survival: number;
-  efficiency: number;
-  aggression: number;
-  potDominance: number;
+  discipline: number;
+  cashRate: number;
+  earningPower: number;
   consistency: number;
 };
+
+/** Hours a player spent in a round (bust time, fallback to full round duration). */
+function playedSeconds(r: AxisResult, rd: { duration_seconds: number | null } | undefined): number {
+  if (r.bust_time_seconds != null && r.bust_time_seconds > 0) return r.bust_time_seconds;
+  return rd?.duration_seconds ?? 0;
+}
+
+export function hourlyRate(
+  playerId: string,
+  rounds: AxisRound[],
+  results: AxisResult[],
+): { hours: number; net: number; rate: number } {
+  const roundById = new Map(rounds.map((r) => [r.id, r]));
+  let secs = 0;
+  let net = 0;
+  for (const r of results) {
+    if (r.player_id !== playerId || !roundById.has(r.round_id)) continue;
+    secs += playedSeconds(r, roundById.get(r.round_id));
+    net += Number(r.net_amount ?? 0);
+  }
+  const hours = secs / 3600;
+  return { hours, net, rate: hours > 0 ? net / hours : 0 };
+}
 
 /**
  * Compute 0-10 axes for a specific player across the provided rounds/results.
@@ -126,17 +150,8 @@ export function computePlayerAxes(
   results: AxisResult[],
 ): PlayerAxes {
   const roundById = new Map(rounds.map((r) => [r.id, r]));
-  const mine = results.filter((r) => r.player_id === playerId && roundById.has(r.round_id));
-
-  // Precompute max bust_bb per round (proxy for maxBbInMatch)
-  const maxBbInRound = new Map<string, number>();
-  for (const r of results) {
-    if (!roundById.has(r.round_id)) continue;
-    if (r.bust_bb != null) {
-      const cur = maxBbInRound.get(r.round_id) ?? 0;
-      if (r.bust_bb > cur) maxBbInRound.set(r.round_id, r.bust_bb);
-    }
-  }
+  const scoped = results.filter((r) => roundById.has(r.round_id));
+  const mine = scoped.filter((r) => r.player_id === playerId);
 
   const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
   const clamp = (v: number) => Math.max(0, Math.min(10, v));
@@ -149,25 +164,20 @@ export function computePlayerAxes(
     survivalVals.push((r.bust_time_seconds / rd.duration_seconds) * 10);
   }
 
-  // 2. Efficiency: min(10, points/(rebuys+1) * 0.1)
-  const efficiencyVals = mine.map((r) => Math.min(10, (r.points_awarded / (r.rebuys + 1)) * 0.1));
+  // 2. Discipline: fewer re-buys is better
+  const avgRebuys = avg(mine.map((r) => r.rebuys));
+  const discipline = mine.length ? 10 / (1 + avgRebuys) : 0;
 
-  // 3. Aggression: bust_bb / max_bb_in_match
-  const aggressionVals: number[] = [];
-  for (const r of mine) {
-    if (r.bust_bb == null) continue;
-    const maxBb = maxBbInRound.get(r.round_id);
-    if (!maxBb || maxBb <= 0) continue;
-    aggressionVals.push((r.bust_bb / maxBb) * 10);
-  }
+  // 3. Cash rate: how often in the money
+  const cashRate = mine.length
+    ? (mine.filter((r) => Number(r.payout) > 0).length / mine.length) * 10
+    : 0;
 
-  // 4. Pot dominance: payout / total_pot
-  const potVals: number[] = [];
-  for (const r of mine) {
-    const rd = roundById.get(r.round_id);
-    if (!rd?.total_pot) continue;
-    potVals.push((Number(r.payout) / Number(rd.total_pot)) * 10);
-  }
+  // 4. Earning power: hourly rate scaled against the best hourly rate in scope
+  const me = hourlyRate(playerId, rounds, scoped);
+  const playerIds = Array.from(new Set(scoped.map((r) => r.player_id)));
+  const bestRate = playerIds.reduce((m, pid) => Math.max(m, hourlyRate(pid, rounds, scoped).rate), 0);
+  const earningPower = bestRate > 0 ? (Math.max(0, me.rate) / bestRate) * 10 : 0;
 
   // 5. Consistency: (1 - (finish-1)/total_players) * 10
   const consistencyVals: number[] = [];
@@ -179,9 +189,9 @@ export function computePlayerAxes(
 
   return {
     survival: clamp(avg(survivalVals)),
-    efficiency: clamp(avg(efficiencyVals)),
-    aggression: clamp(avg(aggressionVals)),
-    potDominance: clamp(avg(potVals)),
+    discipline: clamp(discipline),
+    cashRate: clamp(cashRate),
+    earningPower: clamp(earningPower),
     consistency: clamp(avg(consistencyVals)),
   };
 }
