@@ -1,18 +1,14 @@
 import { RadarChart, Radar, PolarAngleAxis, PolarGrid, PolarRadiusAxis, ResponsiveContainer, Tooltip } from "recharts";
 
-export type PlayerAxes = {
-  survival: number;
-  efficiency: number;
-  aggression: number;
-  potDominance: number;
-  consistency: number;
-};
+import type { PlayerAxes } from "@/lib/points";
+
+export type { PlayerAxes };
 
 const AXIS_LABELS: Array<{ key: keyof PlayerAxes; label: string; short: string; desc: string }> = [
   { key: "survival", label: "Survival", short: "SUR", desc: "อยู่รอดจนช่วงท้ายทัวร์นาเมนต์" },
-  { key: "efficiency", label: "Efficiency", short: "EFF", desc: "แต้มสูงเทียบกับ Rebuy" },
-  { key: "aggression", label: "Aggression", short: "AGG", desc: "สู้จนถึงบลายด์สูง" },
-  { key: "potDominance", label: "Pot Dominance", short: "POT", desc: "ส่วนแบ่งเงินกองกลาง" },
+  { key: "discipline", label: "Discipline", short: "DIS", desc: "Re-buy น้อย = คะแนนสูง" },
+  { key: "cashRate", label: "Cash Rate", short: "ITM", desc: "เข้าเงินบ่อยแค่ไหน" },
+  { key: "earningPower", label: "Earning Power", short: "HR", desc: "ทำเงินต่อชั่วโมงเทียบคนที่ดีที่สุด" },
   { key: "consistency", label: "Consistency", short: "CON", desc: "อันดับที่ตกรอบเทียบผู้เล่นทั้งหมด" },
 ];
 

@@ -14,13 +14,15 @@ import { format } from "date-fns";
 import { PlayerAvatar } from "@/components/Avatar";
 import { BadgeChip } from "@/components/BadgeChip";
 import { PlayerRadar } from "@/components/PlayerRadar";
-import { computePlayerAxes } from "@/lib/points";
+import { PlayerTrendChart } from "@/components/PlayerTrendChart";
+import { MiniKpi } from "@/components/dashboard/MiniKpi";
+import { computePlayerAxes, hourlyRate } from "@/lib/points";
 import { useAdminUnlocked, getAdminPassword } from "@/lib/admin-store";
 import { useServerFn } from "@tanstack/react-start";
 import { grantBadge, revokeBadge } from "@/lib/api/admin.functions";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, X, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Plus, X, TrendingUp, TrendingDown, Minus, Clock, Coins, Rocket } from "lucide-react";
 
 const searchSchema = z.object({
   season: fallback(z.string(), "__all").default("__all"),
@@ -126,20 +128,62 @@ function PlayerDetail() {
     };
   }, [results, id]);
 
+  // ---- Time / hourly / growth ----
+  const timeStats = useMemo(() => {
+    const mine = hourlyRate(id, rounds, results);
+    const others = players
+      .filter((p) => p.id !== id)
+      .map((p) => hourlyRate(p.id, rounds, results))
+      .filter((h) => h.hours > 0);
+    const avgHours = others.length ? others.reduce((s, h) => s + h.hours, 0) / others.length : undefined;
+    const avgRate = others.length ? others.reduce((s, h) => s + h.rate, 0) / others.length : undefined;
+
+    // Growth: recent half vs earlier half of net per round
+    const chrono = [...myResults]
+      .map((r) => ({ ...r, at: +new Date(rounds.find((x) => x.id === r.round_id)?.played_at ?? 0) }))
+      .sort((a, b) => a.at - b.at);
+    let growth: number | null = null;
+    if (chrono.length >= 4) {
+      const half = Math.floor(chrono.length / 2);
+      const early = chrono.slice(0, half);
+      const late = chrono.slice(half);
+      const mean = (xs: typeof chrono) => xs.reduce((s, r) => s + Number(r.net_amount), 0) / xs.length;
+      const a = mean(early);
+      const b = mean(late);
+      if (a !== 0) growth = ((b - a) / Math.abs(a)) * 100;
+    }
+    return { hours: mine.hours, rate: mine.rate, avgHours, avgRate, growth };
+  }, [id, players, rounds, results, myResults]);
+
+  const trendData = useMemo(
+    () =>
+      [...enriched]
+        .filter((r) => r.round)
+        .sort((a, b) => +new Date(a.round!.played_at) - +new Date(b.round!.played_at))
+        .map((r) => ({
+          date: r.round!.played_at,
+          roundName: r.round!.name,
+          finish: r.finish_position,
+          net: Number(r.net_amount),
+          points: r.points_awarded,
+        })),
+    [enriched],
+  );
+
   // ---- Radar axes ----
   const axes = useMemo(() => computePlayerAxes(id, rounds, results), [id, rounds, results]);
   const compareAxes = useMemo(() => {
     // Average axes across all other players who have rounds
     const others = players.filter((p) => p.id !== id);
     const per = others.map((p) => computePlayerAxes(p.id, rounds, results));
-    const withData = per.filter((a) => a.survival + a.efficiency + a.aggression + a.potDominance + a.consistency > 0);
+    const withData = per.filter((a) => a.survival + a.discipline + a.cashRate + a.earningPower + a.consistency > 0);
     if (withData.length === 0) return undefined;
     const avg = (k: keyof typeof axes) => withData.reduce((s, a) => s + a[k], 0) / withData.length;
     return {
       survival: avg("survival"),
-      efficiency: avg("efficiency"),
-      aggression: avg("aggression"),
-      potDominance: avg("potDominance"),
+      discipline: avg("discipline"),
+      cashRate: avg("cashRate"),
+      earningPower: avg("earningPower"),
       consistency: avg("consistency"),
     };
   }, [players, id, rounds, results, axes]);
@@ -239,6 +283,43 @@ function PlayerDetail() {
         <KpiCard label="Money Won" value={`${currency}${Math.round(my.money).toLocaleString()}`} raw={my.money} avg={groupAvg?.money} betterWhen="higher" />
         <KpiCard label="Avg Re-buy" value={my.avgRebuy.toFixed(2)} raw={my.avgRebuy} avg={groupAvg?.avgRebuy} betterWhen="lower" />
       </div>
+
+      {/* TIME / RATE / GROWTH */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <MiniKpi
+          icon={Clock}
+          tint="info"
+          label="Time Played"
+          value={timeStats.hours >= 1 ? `${timeStats.hours.toFixed(1)} h` : `${Math.round(timeStats.hours * 60)} min`}
+          sub={timeStats.avgHours ? `Group avg ${timeStats.avgHours.toFixed(1)} h` : null}
+          delta={timeStats.avgHours ? ((timeStats.hours - timeStats.avgHours) / timeStats.avgHours) * 100 : null}
+        />
+        <MiniKpi
+          icon={Coins}
+          tint={timeStats.rate >= 0 ? "success" : "warning"}
+          label="Hourly Rate"
+          value={`${timeStats.rate < 0 ? "-" : ""}${currency}${Math.abs(Math.round(timeStats.rate)).toLocaleString()}/h`}
+          sub={timeStats.avgRate != null ? `Group avg ${currency}${Math.round(timeStats.avgRate).toLocaleString()}/h` : null}
+          delta={
+            timeStats.avgRate != null && timeStats.avgRate !== 0
+              ? ((timeStats.rate - timeStats.avgRate) / Math.abs(timeStats.avgRate)) * 100
+              : null
+          }
+        />
+        <MiniKpi
+          icon={Rocket}
+          tint="primary"
+          label="Growth Rate"
+          value={timeStats.growth == null ? "—" : `${timeStats.growth > 0 ? "+" : ""}${timeStats.growth.toFixed(0)}%`}
+          sub="Recent half vs earlier half (net/round)"
+          delta={timeStats.growth}
+        />
+      </div>
+
+      {/* TREND */}
+      <PlayerTrendChart data={trendData} currency={currency} />
+
+
 
       {/* RADAR */}
       {my.rounds === 0 ? (
