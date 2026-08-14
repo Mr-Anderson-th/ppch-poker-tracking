@@ -14,13 +14,15 @@ import { format } from "date-fns";
 import { PlayerAvatar } from "@/components/Avatar";
 import { BadgeChip } from "@/components/BadgeChip";
 import { PlayerRadar } from "@/components/PlayerRadar";
-import { computePlayerAxes } from "@/lib/points";
+import { PlayerTrendChart } from "@/components/PlayerTrendChart";
+import { MiniKpi } from "@/components/dashboard/MiniKpi";
+import { computePlayerAxes, hourlyRate } from "@/lib/points";
 import { useAdminUnlocked, getAdminPassword } from "@/lib/admin-store";
 import { useServerFn } from "@tanstack/react-start";
 import { grantBadge, revokeBadge } from "@/lib/api/admin.functions";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, X, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Plus, X, TrendingUp, TrendingDown, Minus, Clock, Coins, Rocket } from "lucide-react";
 
 const searchSchema = z.object({
   season: fallback(z.string(), "__all").default("__all"),
