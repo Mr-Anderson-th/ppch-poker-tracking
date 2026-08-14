@@ -20,7 +20,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { grantBadge, revokeBadge } from "@/lib/api/admin.functions";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, X, TrendingUp, TrendingDown, Minus, Clock } from "lucide-react";
+import { Plus, X, TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 const searchSchema = z.object({
   season: fallback(z.string(), "__all").default("__all"),
