@@ -284,6 +284,43 @@ function PlayerDetail() {
         <KpiCard label="Avg Re-buy" value={my.avgRebuy.toFixed(2)} raw={my.avgRebuy} avg={groupAvg?.avgRebuy} betterWhen="lower" />
       </div>
 
+      {/* TIME / RATE / GROWTH */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <MiniKpi
+          icon={Clock}
+          tint="info"
+          label="Time Played"
+          value={timeStats.hours >= 1 ? `${timeStats.hours.toFixed(1)} h` : `${Math.round(timeStats.hours * 60)} min`}
+          sub={timeStats.avgHours ? `Group avg ${timeStats.avgHours.toFixed(1)} h` : null}
+          delta={timeStats.avgHours ? ((timeStats.hours - timeStats.avgHours) / timeStats.avgHours) * 100 : null}
+        />
+        <MiniKpi
+          icon={Coins}
+          tint={timeStats.rate >= 0 ? "success" : "warning"}
+          label="Hourly Rate"
+          value={`${timeStats.rate < 0 ? "-" : ""}${currency}${Math.abs(Math.round(timeStats.rate)).toLocaleString()}/h`}
+          sub={timeStats.avgRate != null ? `Group avg ${currency}${Math.round(timeStats.avgRate).toLocaleString()}/h` : null}
+          delta={
+            timeStats.avgRate != null && timeStats.avgRate !== 0
+              ? ((timeStats.rate - timeStats.avgRate) / Math.abs(timeStats.avgRate)) * 100
+              : null
+          }
+        />
+        <MiniKpi
+          icon={Rocket}
+          tint="primary"
+          label="Growth Rate"
+          value={timeStats.growth == null ? "—" : `${timeStats.growth > 0 ? "+" : ""}${timeStats.growth.toFixed(0)}%`}
+          sub="Recent half vs earlier half (net/round)"
+          delta={timeStats.growth}
+        />
+      </div>
+
+      {/* TREND */}
+      <PlayerTrendChart data={trendData} currency={currency} />
+
+
+
       {/* RADAR */}
       {my.rounds === 0 ? (
         <Card><CardContent className="p-8 text-center text-muted-foreground">No rounds played in this scope yet.</CardContent></Card>
