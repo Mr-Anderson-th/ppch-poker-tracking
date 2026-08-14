@@ -93,14 +93,14 @@ export function PlayerTrendChart({ data, currency }: { data: TrendPoint[]; curre
                     fontSize: 12,
                     color: "var(--card-foreground)",
                   }}
-                  labelFormatter={(_l, p) => {
-                    const d = p?.[0]?.payload as TrendPoint | undefined;
+                  labelFormatter={(_l: unknown, p: ReadonlyArray<{ payload?: TrendPoint }> = []) => {
+                    const d = p?.[0]?.payload;
                     return d ? `${d.roundName} · ${format(new Date(d.date), "MMM d, yyyy")}` : "";
                   }}
-                  formatter={(v: number, _n, p) => {
-                    const d = p?.payload as TrendPoint | undefined;
+                  formatter={((v: number, _n: unknown, p: { payload?: TrendPoint }) => {
+                    const d = p?.payload;
                     return [`${fmt(v)}${d ? `  ·  finish #${d.finish}` : ""}`, mode === "cumulative" ? "Running total" : "This round"];
-                  }}
+                  }) as never}
                 />
                 <Area
                   type="monotone"
